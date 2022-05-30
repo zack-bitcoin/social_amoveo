@@ -1,0 +1,116 @@
+gen_servers: accounts, settings, posts, and dms
+
+threads:
+* delete expired dms.
+* scan blocks, update balances of veo.
+
+lazy events:
+* if a coin-hours check fails because coin-hours has gone negative, and coins are also negative, then start undelegating, then deleting old votes, then old read messages, and finally old posts. keep going until coins is positive.
+
+We need an accounts gen_server to keep track of each accounts:
+* account id
+* pubkey
+* account name
+* custom description
+* timestamp last updated
+* veo balance
+* total delegated coins (can be positive or negative)
+* coins being used
+* net coins owned
+* coin-hour balance
+* account nonce internal to this server.
+* how many coins have been delegated.
+* how many coins are used in posts.
+* how many coins are used in votes.
+* how many accounts they follow.
+* ids of DMs received and not yet deleted.
+* {account id, balance} who we delegate to.
+* {account id, balance} who delegates to us.
+* a list of accounts that they follow.
+* {post id, timestamp, upvotes, downvotes} of all the posts that they have authored, in chronological order, with recent posts first.
+* {post id, amount, timestamp} of all the posts that they have voted on. in chronological order, recent votes first.
+
+We need a settings gen_server to keep track of:
+* Max bytes of hard drive to use.
+* operations per second, and how many operations does each api request consume. (generate this by doing tests on the databases as they exist.)
+* total number of coins
+* half-life of coin-hours.
+
+(coin-hours produced per hour are the same as the market cap. So if you have (Market cap) many coin-hours, then you should be able to use nearly 100% of the server's CPU per hour)
+
+We need a posts gen_server to keep track of each post's:
+* id
+* text
+* author
+* timestamp when posted
+* total coins upvoted
+* total coins downvoted
+* post ids of comments.
+* post id of parent (for if this is a comment)
+
+A gen_server to keep track of direct messages (DMs).
+* id
+* content
+* expiration
+* recipient
+
+We need code to verify an api request is signed and has a valid nonce. Update the account nonce, and do the thing they want done.
+example of signed api: https://github.com/zack-bitcoin/educational_market/blob/main/src/http_handler.erl
+
+API requests that use coins and coin-hours:
+* delegate coins to another account. (so you can use your cold storage funds).
+* choose an account name. (you get refunded coins for making your name shorter)
+* choose a description for your account.(you get refunded coins for making your description shorter.)
+* follow an account.
+* make a post.
+* upvote/downvote (vote) a post. post id, amount to vote with. (potentially changes the list of post ids ordered by popularity in the author's account).
+* scale back all votes. (is costs according to how many votes you have.)
+* delete all but your N biggest votes. (costs accourding to how many votes you have.) (refunds coins from those votes)
+* send a DM, with an optional coin-hour lockup. (costs more for longer messages, and if the expiration is further in the future.)
+* check DM. (costs coins, because now the data is yours to delete) (refunds coin-hours to sender based on how long until the refund)
+
+API requests that use only coin-hours:
+* un-delegate coins.
+* check your balance of coins and coin-hours.
+* lookup post by id
+* lookup account by pubkey
+* spend coin-hours to another account. 
+* N recent chronological posts by accounts 
+* top N posts written by these accounts (costs by how many posts are loaded)
+* top posts, according to upvotes from these accounts. costs by (database lookup for each account) + (sum up sublists of each account)
+* list of accounts that an account follows.
+* given list of account L, and an account A, returns subset of L that are followers of A.
+* unfollow an account. (refunds coins)
+* list of who delegates to you.
+
+Free signed api
+* delete a DM.
+* unlock/burn deposit from DM
+* remove a vote.
+* delete a post.
+* undelegate.
+
+Free signed api, waits a couple seconds before responding.
+* DM ids you already read.
+* lookup DM by id.
+* list of who you delegated to.
+* list of your read DMs.
+
+Free api requests, waits a couple seconds before responding.
+* test
+* top posts
+* top posts, by account
+* recent posts, by account
+* votes from an account
+
+
+formula for updating coin-hours.
+
+P = Previous balance of coin-hours.
+C = coins balance
+T = time passed since last update
+H = half-life. maybe 30 days or 720 hours?
+
+N = New Balance of coin-hours
+N = P + (T*(C - P)/H)
+

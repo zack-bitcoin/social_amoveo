@@ -1,0 +1,21 @@
+{application, social_amoveo,
+ [{description, "An OTP application"},
+  {vsn, "0.1.0"},
+  {registered, []},
+  {mod, {social_amoveo_app, []}},
+  {applications,
+   [kernel,
+    stdlib,
+    ssl,
+    cowboy,
+    inets,
+    encrypter,
+    jiffy,
+    pink_hash
+   ]},
+  {env,[]},
+  {modules, []},
+
+  {licenses, []},
+  {links, []}
+ ]}.
