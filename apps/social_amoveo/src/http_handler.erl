@@ -15,6 +15,13 @@ handle(Req, State) ->
     Req4 = cowboy_req:reply(200, Headers, D, Req2),
     {ok, Req4, State}.
 doit({test}) -> {ok, "success"};
+
+%todo
+%top posts
+% top posts from an account
+%recent posts from an account
+%votes from an account
+
 doit(X) ->
     io:fwrite("http handler doit fail"),
     io:fwrite(X).

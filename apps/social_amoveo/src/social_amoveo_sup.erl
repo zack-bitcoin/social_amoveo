@@ -25,11 +25,19 @@ start_link() ->
 %%                  shutdown => shutdown(), % optional
 %%                  type => worker(),       % optional
 %%                  modules => modules()}   % optional
+child_maker([]) -> [];
+child_maker([X|T]) -> 
+    [#{id => X, start => {X, start_link, []}}|
+     child_maker(T)].
 init([]) ->
     SupFlags = #{strategy => one_for_all,
                  intensity => 0,
                  period => 1},
-    ChildSpecs = [],
+    ChildSpecs = child_maker([accounts, nonces, pubkeys, posts, dms]),
+%    ChildSpecs = [
+%                  #{id => accounts,
+%                    start => {accounts, start_link, []} }
+%                 ],
     {ok, {SupFlags, ChildSpecs}}.
 
 %% internal functions

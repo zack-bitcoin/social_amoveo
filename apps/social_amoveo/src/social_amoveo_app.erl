@@ -12,6 +12,8 @@
 start(_StartType, _StartArgs) ->
     inets:start(),
     start_http(),
+    dms:cron(),
+    accounts:cron(),
     social_amoveo_sup:start_link().
 
 stop(_State) ->
@@ -22,6 +24,7 @@ start_http() ->
     Dispatch =
         cowboy_router:compile(
           [{'_', [
+		  {"/signed/", signed_handler, []},
 		  {"/:file", file_handler, []},
 		  {"/", http_handler, []}
 		 ]}]),
