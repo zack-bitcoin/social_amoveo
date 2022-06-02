@@ -1,3 +1,6 @@
+%UNUSED.
+
+
 -module(nonces).
 -behaviour(gen_server).
 -export([start_link/0,code_change/3,handle_call/3,handle_cast/2,handle_info/2,init/1,terminate/2]).
@@ -16,7 +19,6 @@ handle_cast({update, I, Nonce}, X) ->
     Prev = lookup(I),
     if
         Nonce > Prev ->
-            ets:delete(?MODULE, I),
             ets:insert(?MODULE, [{I, Nonce}]);
         true -> ok
     end,

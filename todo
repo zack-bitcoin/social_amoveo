@@ -1,16 +1,10 @@
-gen_servers: accounts, pubkeys, posts, and dms
-* internals
-* externals
 
 threads:
-* delete expired dms. in dms:cron
 * scan blocks, update balances of veo. in accounts:cron
+* scan accounts to see if any accounts have negative coins and coin-hours. then start undelegating, then deleting old votes, then old read messages, and then old posts, and then description, and then account id. keep going until coins is positive, or the account is gone.
 
-lazy events:
-* if a coin-hours check fails because coin-hours has gone negative, and coins are also negative, then start undelegating, then deleting old votes, then old read messages, and then old posts, and then description, and then account id. keep going until coins is positive, or the account is gone.
+in signed_handler, each transaction type should also sign over some randomness produced by the server. So that txs intended for other servers can't be replayed.
 
-We need code to verify an api request is signed and has a valid nonce. Update the account nonce, and do the thing they want done.
-example of signed api: https://github.com/zack-bitcoin/educational_market/blob/main/src/http_handler.erl
 todo in signed_handler.erl
 todo in http_handler.erl
 

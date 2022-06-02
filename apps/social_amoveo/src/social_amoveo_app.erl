@@ -12,7 +12,6 @@
 start(_StartType, _StartArgs) ->
     inets:start(),
     start_http(),
-    dms:cron(),
     accounts:cron(),
     social_amoveo_sup:start_link().
 

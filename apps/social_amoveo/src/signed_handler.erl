@@ -1,5 +1,5 @@
 -module(signed_handler).
--export([init/3, handle/2, terminate/3, doit/1, init/2]).
+-export([init/3, handle/2, terminate/3, doit/2, init/2]).
 init(Req0, Opts) ->
     handle(Req0, Opts).	
 init(_Type, Req, _Opts) -> {ok, Req, no_state}.
@@ -8,30 +8,24 @@ handle(Req, State) ->
     {ok, Data0, Req2} = cowboy_req:body(Req),
     {IP, _} = cowboy_req:peer(Req2),
     Data1 = jiffy:decode(Data0),
-    Data = packer:unpack_helper(Data1),
+    Stx = packer:unpack_helper(Data1),
 
-    1=2,
-    %TODO
-    %signature stuff here.
-    %true = signing:verify(Stx),
-    %Tx = element(2, Stx),
-    %Pub = element(2, Tx),
-    %Nonce = element(3, Tx),
-    %true = not(AdminCheck) or 
-    %    admin:check(Pub),
-    %PrevNonce = nonces:check(Pub),
-    %true = Nonce > PrevNonce,
-    %X = F(Tx),
-    %nonces:update(Pub, Nonce),
+    Tx = element(2, Stx),
+    Pub = element(2, Tx),
+    Nonce = element(3, Tx),
+    AID = pubkeys:read(Pub),
+    Acc =  accounts:read(AID),
+    PrevNonce =  accounts:nonce(Acc),
+    true = Nonce > PrevNonce,
+    D = packer:pack(doit(Tx, AID)),
+    accounts:update_nonce(AID, Nonce),
 
-
-    D = packer:pack(doit(Data)),
     Headers=[{<<"content-type">>,<<"application/octet-stream">>},
     {<<"Access-Control-Allow-Origin">>, <<"*">>}],
     Req4 = cowboy_req:reply(200, Headers, D, Req2),
     {ok, Req4, State}.
-doit({test}) -> {ok, "success"};
-doit({balance, 1, Pub}) ->
+doit({test}, _) -> {ok, "success"};
+doit({balance}, AID) ->
     %returns your balance in coins and in coin-hours. Also tells how many coins you have delegated, ho
     {ok, 0};
 
@@ -47,6 +41,7 @@ doit({balance, 1, Pub}) ->
 %* delete all but your N biggest votes. (costs accourding to how many votes you have.) (refunds coins from those votes)
 %* send a DM, with an optional coin-hour lockup. (costs more for longer messages, and if the expiration is further in the future.)
 %* check DM. (costs coins, because now the data is yours to delete) (refunds coin-hours to sender based on how long until the refund)
+%* unlock DM deposit
 
 %API requests that use only coin-hours:
 %* un-delegate coins.
@@ -69,13 +64,14 @@ doit({balance, 1, Pub}) ->
 %* delete a post.
 %* undelegate.
 
-%Free signed api, waits a couple seconds before responding.
+%Free signed api, waits a couple seconds before responding. so that you don't need to already have coin-hours to be able to delete things and recuperate your coins to start generating coin-hours again.
 %* DM ids you already read.
 %* lookup DM by id.
 %* list of who you delegated to.
 %* list of your read DMs.
 
 
-doit(X) ->
+doit(X, _) ->
     io:fwrite("http handler doit fail"),
-    io:fwrite(X).
+    io:fwrite(X),
+    <<"error- unsupported http request.">>.

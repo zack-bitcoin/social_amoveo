@@ -1,7 +1,8 @@
 -module(ets_tools).
 -export([location/1, 
          load_ets/2, load_ets/1,
-         save_table/2, save_table/1]).
+         save_table/2, save_table/1,
+         read/1, write/2]).
 
 location(ID) ->
     atom_to_list(ID) ++ ".db".
@@ -35,3 +36,14 @@ save_table(ID, Loc) ->
         {error, R} ->
             save_table(ID, Loc)
     end.
+
+read(X) ->
+    case ets:lookup(?MODULE, X) of
+        [] -> error;
+        [{X, A}] -> {ok, A}
+    end.
+
+write(ID, V) ->
+    ets:insert(?MODULE, [{ID, V}]).
+    
+            

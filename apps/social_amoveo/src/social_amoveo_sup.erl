@@ -33,11 +33,9 @@ init([]) ->
     SupFlags = #{strategy => one_for_all,
                  intensity => 0,
                  period => 1},
-    ChildSpecs = child_maker([accounts, nonces, pubkeys, posts, dms]),
-%    ChildSpecs = [
-%                  #{id => accounts,
-%                    start => {accounts, start_link, []} }
-%                 ],
+    ChildSpecs = 
+        child_maker(
+          [accounts, pubkeys, posts, 
+           dms, height_tracker]),
     {ok, {SupFlags, ChildSpecs}}.
 
-%% internal functions
