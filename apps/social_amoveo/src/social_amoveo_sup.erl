@@ -35,7 +35,7 @@ init([]) ->
                  period => 1},
     ChildSpecs = 
         child_maker(
-          [accounts, pubkeys, posts, 
-           dms, height_tracker]),
+          [scan_height, accounts, pubkeys, posts, 
+           dms, height_tracker, settings]),
     {ok, {SupFlags, ChildSpecs}}.
 

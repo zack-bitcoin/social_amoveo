@@ -12,7 +12,7 @@
 start(_StartType, _StartArgs) ->
     inets:start(),
     start_http(),
-    accounts:cron(),
+    spawn(fun() -> accounts:block_cron() end),
     social_amoveo_sup:start_link().
 
 stop(_State) ->

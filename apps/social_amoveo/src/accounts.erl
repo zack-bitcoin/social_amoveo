@@ -28,7 +28,7 @@
          new_account/0,
          test/0,
 
-         cron/0]).
+         block_cron/0]).
 
 -record(acc, 
         {%id, pubkey, 
@@ -52,8 +52,6 @@
          posts = [], %{post_id, timestamp, upvotes, downvotes} posts that we authored, in chronological order, recent posts first.
          votes = [] %{post_id, amount, timestamp}
         }).
-
-
 
 
 init(ok) -> 
@@ -415,7 +413,7 @@ handle_cast({remove_small_votes, AID, Min}, X) ->
     {noreply, X};
 handle_cast({update_veo_balance, AID, NewBalance},
             X) -> 
-    case ets_read(AID) of
+    case read(AID) of
         error -> ok;
         {ok, A} ->
             A2 = A#acc{
@@ -496,10 +494,10 @@ read(AID, Height) ->
          } = A,
             Coins = balance(A),
             TS2 = max(Height, TS),
-            A#acc{
+            {ok, A#acc{
               coin_hours = 
                   new_balance(CoinHours, TS, TS2, Coins),
-              timestamp = TS2}
+              timestamp = TS2}}
     end.
 new_balance(CoinHours, TS1, TS2, Coins) ->
 %formula for updating coin-hours.
@@ -705,11 +703,84 @@ rm2(MID, [A|T], R) ->
                           
 
 
+block_cron() ->
+    timer:sleep(5000),
+    block_scan(),
+    block_cron().
+unused() ->
+    spawn(fun() ->
+   %               timer:sleep(5000),
+                  timer:sleep(5000)
+                  %block_cron()
+          end),
+    spawn(fun() ->
+                  timer:sleep(5000),
+                  block_scan(),
+                  block_cron()
+          end).
+block_scan() ->
+    X = utils:talk({height}),
+    case X of
+        {ok, Height} ->
+            Start2 = max(0, scan_height:read()),
+%    spawn(fun() ->
+            scan_history(Start2, Height+1);
+        _ -> ok
+    end.
+scan_history(N, M) when N >= M -> ok;
+scan_history(Start, End) -> 
+    E2 = min(End, Start+50),
+    {ok, Blocks} = utils:talk({blocks, Start, E2}),
+    case length(Blocks) of
+        1 -> 
+            %io:fwrite("done scanning tx history\n"),
+            ok;
+        _ ->
+            io:fwrite("scanning blocks at \n"),
+            io:fwrite(integer_to_list(Start)),
+            io:fwrite(" - "),
+            io:fwrite(integer_to_list(End)),
+            io:fwrite("\n"),
+            %load_blocks(Blocks),
+            %load_txs(Blocks),
+            load_blocks(Blocks),
+            LastBlock = lists:nth(length(Blocks), Blocks),
+            LastHeight = element(2, LastBlock),
+            scan_history(LastHeight + 1, End)
+            %scan_history(LastHeight, End)
+    end.
 
-cron() ->
-%* scan blocks, update balances of veo.
-% when the block height changes, send new height to the height_tracker.
-    ok.
+   
+load_blocks([]) -> ok;
+load_blocks([Block|T]) -> 
+    %J = element(15, Block) is meta. stored as a stringified JSON object.
+    height_tracker:update(element(2, Block)),
+    J1 = element(15, Block),
+    case J1 of
+        <<"">> -> ok;
+        _ ->
+            J = jiffy:decode(J1),
+            load_txs(
+              element(2, hd(element(1, J))))
+    end,
+    load_blocks(T).
+
+load_txs([]) -> ok;
+load_txs([{[{<<"type">>,<<"account">>},
+            {<<"pubkey">>,P},
+            {<<"balance">>, B}|
+            _]}|T]) -> 
+    AID = case pubkeys:read(P) of
+             error -> 
+                  ID = new_account(),
+                  pubkeys:new(P, ID),
+                  ID;
+             {ok, N} -> N
+         end,
+    update_veo_balance(AID, B),
+    load_txs(T);
+load_txs([_|T]) -> 
+    load_txs(T).
 
 %height_check() ->
 %    case utils:talk({height}) of

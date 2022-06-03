@@ -13,6 +13,8 @@ handle(Req, State) ->
     Tx = element(2, Stx),
     Pub = element(2, Tx),
     Nonce = element(3, Tx),
+    ServerID = element(4, Tx),
+    ServerID = settings:server_id(),
     AID = pubkeys:read(Pub),
     Acc =  accounts:read(AID),
     PrevNonce =  accounts:nonce(Acc),

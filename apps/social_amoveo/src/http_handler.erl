@@ -21,6 +21,7 @@ doit({test}) -> {ok, "success"};
 % top posts from an account
 %recent posts from an account
 %votes from an account
+%* settings:server_id()
 
 doit(X) ->
     io:fwrite("http handler doit fail"),
