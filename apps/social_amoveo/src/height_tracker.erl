@@ -3,9 +3,19 @@
 -export([start_link/0,code_change/3,handle_call/3,handle_cast/2,handle_info/2,init/1,terminate/2,
         check/0, update/1]).
 -define(LOC, "height_tracker.db").
+db_save(F, X) -> file:write_file(F, term_to_binary(X)).
+db_read(F) ->
+    case file:read_file(F) of
+        {ok, <<>>} -> <<>>;
+        {ok, Out} -> binary_to_term(Out);
+        {error, enoent} -> 
+            %io:fwrite("file does not exist\n"),
+            "";
+        {error, Reason} -> Reason
+    end.
 init(ok) -> 
     process_flag(trap_exit, true),
-    X = db:read(?LOC),
+    X = db_read(?LOC),
     Y = if
             (X == "") -> 0;
             true -> X
@@ -14,7 +24,7 @@ init(ok) ->
 start_link() -> gen_server:start_link({local, ?MODULE}, ?MODULE, ok, []).
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 terminate(_, N) -> 
-    db:save(?LOC, N),
+    db_save(?LOC, N),
     io:format("died!"), 
     ok.
 handle_info(_, X) -> {noreply, X}.

@@ -8,10 +8,11 @@
          delegated_to/1,delegated_by/1,
          posts/1, votes/1,
 
-         %synchronous editing
+         %asynchronous editing
          update_nonce/2,
          delegate/3,%delegate value to an existing account
          delegate_new/3,%delegate coins and/or coin-hours to create a new account
+         delegate_new/4,
          pay_interest/1,%update the coin-hours balance after a period of time. Removing coins that expired, and paying out new coin-hours based on the number of coins held.
          make_post/2, remove_post/2,
          make_vote/3, remove_vote/2, 
@@ -24,11 +25,13 @@
          scale_votes/2,
          remove_small_votes/2,
          update_veo_balance/2,
+         new_account/0,
+         test/0,
 
          cron/0]).
 
 -record(acc, 
-        {id, pubkey, 
+        {%id, pubkey, 
          name = <<"">>, description = <<"">>, 
          timestamp, %block when coin-hours was last calculated.
          veo = 0, %how many veo your account owns in the Amoveo blockchain.
@@ -76,7 +79,7 @@ handle_cast({delegate, AID, To, Amount}, Top) ->
             case ets_read(To) of
                 error -> ok;
                 {ok, A2} ->
-                    ets_tools:write(
+                    ets_write(
                       AID, 
                       A1#acc{
                         delegated = 
@@ -86,7 +89,7 @@ handle_cast({delegate, AID, To, Amount}, Top) ->
                             [{To, Amount}|
                              A1#acc.delegated_to]
                        }),
-                    ets_tools:write(
+                    ets_write(
                       To, 
                       A2#acc{
                         delegated = 
@@ -106,15 +109,16 @@ handle_cast({update_nonce, AID, Nonce}, X) ->
             A2 = A#acc{
                    nonce = max(Nonce, 
                                A#acc.nonce)},
-            ets_tools:write(AID, A2)
+            ets_write(AID, A2)
     end,
     {noreply, X};
-%DOING NOW. implement send_dm and remove_dm here.
 handle_cast({send_dm, From, To, MID}, X) ->
+    io:fwrite("send dm internal\n"),
     case {ets_read(From), ets_read(To)} of
         {error, _} -> ok;
         {_, error} -> ok;
         {{ok, F}, {ok, T}} ->
+            io:fwrite("send dm 2\n"),
             F2 = F#acc{
                    sent_unread_dms = 
                        [MID|F#acc.sent_unread_dms],
@@ -126,8 +130,8 @@ handle_cast({send_dm, From, To, MID}, X) ->
                    received_unread_dms = 
                        [MID|T#acc.received_unread_dms]
                   },
-            ets_tools:write(From, F2),
-            ets_tools:write(To, T2)
+            ets_write(From, F2),
+            ets_write(To, T2)
     end,
     {noreply, X};
 handle_cast({mark_read_dm, From, To, MID}, X) ->
@@ -146,7 +150,7 @@ handle_cast({mark_read_dm, From, To, MID}, X) ->
                                F#acc.coins_in_dms -
                                settings:dm_cost()
                           },
-                    ets_tools:write(From, F2)
+                    ets_write(From, F2)
             end
     end,
     case ets_read(To) of
@@ -154,16 +158,16 @@ handle_cast({mark_read_dm, From, To, MID}, X) ->
         {ok, T} ->
             case remove_mid(MID, T#acc.received_unread_dms) of
                 error -> ok;
-                {ok, Unread} ->
+                {ok, Unread2} ->
                     T2 = T#acc{
-                           received_unread_dms = Unread,
+                           received_unread_dms = Unread2,
                            received_read_dms = 
                                [MID|T#acc.received_read_dms],
                            coins_in_dms = 
                                T#acc.coins_in_dms +
                                settings:dm_cost()
                           },
-                    ets_toos:write(To, T2)
+                    ets_write(To, T2)
             end
     end,
     {noreply, X};
@@ -182,7 +186,7 @@ handle_cast({remove_unread_dm, From, To, MID}, X) ->
                                F#acc.coins_in_dms -
                                settings:dm_cost()
                           },
-                    ets_tools:write(From, F2)
+                    ets_write(From, F2)
             end
     end,
     case ets_read(To) of
@@ -190,12 +194,12 @@ handle_cast({remove_unread_dm, From, To, MID}, X) ->
         {ok, T} ->
             case remove_mid(MID, T#acc.received_unread_dms) of
                 error -> ok;
-                {ok, Unread} ->
+                {ok, Unread2} ->
                     T2 = T#acc{
                            received_unread_dms = 
-                               Unread
+                               Unread2
                           },
-                    ets_tools:write(To, T2)
+                    ets_write(To, T2)
             end
     end,
     {noreply, X};
@@ -210,7 +214,7 @@ handle_cast({remove_read_dm, From, To, MID}, X) ->
                     F2 = F#acc{
                            sent_read_dms = Read
                           },
-                    ets_tools:write(From, F2)
+                    ets_write(From, F2)
             end
     end,
     case ets_read(To) of
@@ -218,15 +222,15 @@ handle_cast({remove_read_dm, From, To, MID}, X) ->
         {ok, T} ->
             case remove_mid(MID, T#acc.received_read_dms) of
                 error -> ok;
-                {ok, Read} ->
+                {ok, Read2} ->
                     T2 = T#acc{
                            received_read_dms = 
-                               Read,
+                               Read2,
                            coins_in_dms =
                                T#acc.coins_in_dms +
                                settings:dm_cost()
                           },
-                    ets_tools:write(To, T2)
+                    ets_write(To, T2)
             end
     end,
     {noreply, X};
@@ -241,7 +245,7 @@ handle_cast({follow, AID, Leader}, X) ->
                        A#acc.coins_in_posts + 
                        settings:follow_cost()
                   },
-            ets_tools:write(AID, A2)
+            ets_write(AID, A2)
     end,
     {noreply, X};
 handle_cast({unfollow, AID, Leader}, X) ->
@@ -249,14 +253,14 @@ handle_cast({unfollow, AID, Leader}, X) ->
         error -> ok;
         {ok, A} ->
             case remove_leader(Leader, A#acc.following) of
-                error -> ok
+                error -> ok;
                 {ok, F2} ->
                     A2 = 
                         A#acc{following = F2,
                               coins_in_posts = 
                                   A#acc.coins_in_posts -
                                   settings:follow_cost()},
-                    ets_tools:write(AID, A2);
+                    ets_write(AID, A2)
             end
     end,
     {noreply, X};
@@ -273,7 +277,7 @@ handle_cast({vote, AID, PID, Amount}, X) ->
                        A#acc.coins_in_votes + 
                        Amount
                   },
-            ets_tools:write(AID, A2)
+            ets_write(AID, A2)
     end,
     {noreply, X};
 handle_cast({remove_vote, AID, PID}, X) -> 
@@ -289,7 +293,7 @@ handle_cast({remove_vote, AID, PID}, X) ->
                                A#acc.coins_in_votes - 
                                Amount
                           },
-                    ets_tools:write(AID, A2)
+                    ets_write(AID, A2)
             end
     end,
     {noreply, X};
@@ -307,7 +311,7 @@ handle_cast({post, AID, PID}, X) ->
                        A#acc.coins_in_posts +
                        settings:post_cost()
                   },
-            ets_tools:write(AID, A2)
+            ets_write(AID, A2)
     end,
     {noreply, X};
 handle_cast({remove_post, AID, PID}, X) -> 
@@ -324,14 +328,15 @@ handle_cast({remove_post, AID, PID}, X) ->
                                A#acc.coins_in_posts -
                                settings:post_cost()
                           },
-                    ets_tools:write(AID, A2)
+                    ets_write(AID, A2)
+            end
     end,
     {noreply, X};
 handle_cast({interest, AID}, X) -> 
     case read(AID) of
         error -> ok;
         {ok, A} ->
-            ets_tools:write(AID, A)
+            ets_write(AID, A)
     end,
     {noreply, X};
 handle_cast({change_coin_hours, AID, D}, X) -> 
@@ -342,7 +347,7 @@ handle_cast({change_coin_hours, AID, D}, X) ->
                    coin_hours = 
                        A#acc.coin_hours + D
                   },
-            ets_tools:write(AID, A2)
+            ets_write(AID, A2)
     end,
     {noreply, X};
 handle_cast({change_name, AID, Name}, X) -> 
@@ -351,13 +356,13 @@ handle_cast({change_name, AID, Name}, X) ->
         {ok, A} ->
             OldName = A#acc.name,
             D = size(Name) - size(OldName),
-            Cost = settings:coins_per_byte(D),
+            Cost = settings:coins_per_byte() * D,
             A2 = A#acc{
                    name = Name,
                    coins_in_posts = 
                        A#acc.coins_in_posts + Cost
                   },
-            ets_tools:write(AID, A2)
+            ets_write(AID, A2)
     end,
     {noreply, X};
 handle_cast({change_description, AID, Description},
@@ -365,15 +370,15 @@ handle_cast({change_description, AID, Description},
     case ets_read(AID) of
         error -> ok;
         {ok, A} ->
-            OldDes = A#acc.descriptioin,
+            OldDes = A#acc.description,
             D = size(Description) - size(OldDes),
-            Cost = settings:coins_per_byte(D),
+            Cost = settings:coins_per_byte() * D,
             A2 = A#acc{
-                   name = Name,
+                   description = Description,
                    coins_in_posts = 
                        A#acc.coins_in_posts + Cost
                   },
-            ets_tools:write(AID, A2)
+            ets_write(AID, A2)
     end,
     {noreply, X};
 handle_cast({scale_votes, AID, N}, X) -> 
@@ -389,14 +394,14 @@ handle_cast({scale_votes, AID, N}, X) ->
                        A#acc.coins_in_votes -
                        RecoveredCoins
                   },
-            ets_tools:write(AID, A2)
+            ets_write(AID, A2)
     end,
     {noreply, X};
 handle_cast({remove_small_votes, AID, Min}, X) -> 
     case ets_read(AID) of
         error -> ok;
         {ok, A} ->
-            {NewVotes, RecoverdCoins} =
+            {NewVotes, RecoveredCoins} =
                 remove_small_internal(
                   A#acc.votes, Min),
             A2 = A#acc{
@@ -405,31 +410,45 @@ handle_cast({remove_small_votes, AID, Min}, X) ->
                        A#acc.coins_in_votes -
                        RecoveredCoins
                   },
-            ets_tools:write(AID, A2)
+            ets_write(AID, A2)
     end,
-    {noreply, X}.
-handle_cast({update_veo_balance, NewBalance},X) -> 
+    {noreply, X};
+handle_cast({update_veo_balance, AID, NewBalance},
+            X) -> 
     case ets_read(AID) of
         error -> ok;
         {ok, A} ->
             A2 = A#acc{
                    veo = NewBalance
                   },
-            ets_tools:write(AID, A2)
+            ets_write(AID, A2)
     end,
     {noreply, X};
 handle_cast(_, X) -> {noreply, X}.
-handle_call({delegate_new, AID, Pub, Coins, CoinHours}, 
-            _From, X) -> 
+handle_call({new_account, Height}, _, X) -> 
+    case ets_read(X) of
+        {ok, _} -> 
+            io:fwrite("this should never happen. in account, new_account."),
+            ok;
+        error ->
+            A = #acc{
+              timestamp = Height
+             },
+            ets_write(X, A)
+    end,
+    {reply, X, X+1};
+handle_call({delegate_new, AID, Coins, 
+             CoinHours, Height}, 
+            _From, Top) -> 
     %for the case where we are creating an account that doesn't exist in our database yet.
-    NewCoinHoursA1 = 
-        A1#acc.coin_hours - 
-        CoinHours,
-    CoinsA1 = balance(A1),
     case ets_read(AID) of
         error -> {reply, {error, <<"your account does not exist">>}, 
                   Top};
         {ok, A1} -> 
+            CoinsA1 = balance(A1),
+            NewCoinHoursA1 = 
+                A1#acc.coin_hours - 
+                CoinHours,
             if
                 NewCoinHoursA1 < 0 ->
                     {reply, {error, <<"you don't have that many coin-hours to spend">>}, 
@@ -438,7 +457,7 @@ handle_call({delegate_new, AID, Pub, Coins, CoinHours},
                     {reply, {error, <<"you don't have that many coins to delegate">>},
                      Top};
                 true ->
-                    ets_tools:write(
+                    ets_write(
                       AID, 
                       A1#acc{
                         coin_hours = 
@@ -450,17 +469,17 @@ handle_call({delegate_new, AID, Pub, Coins, CoinHours},
                             [{Top, Coins}|
                              A1#acc.delegated_to]
                        }),
-                    ets_tools:write(
+                    ets_write(
                       Top, #acc{
                         coin_hours = CoinHours,
                         delegated = -Coins,
                         delegated_by = 
-                            [{AID, Coins}]
+                            [{AID, Coins}],
+                        timestamp = Height
                        }),
                     {reply, Top, Top+1}
             end
     end;
-    {reply, Y, X};
 handle_call(_, _From, X) -> {reply, X, X}.
 
 read(AID) ->
@@ -488,18 +507,20 @@ new_balance(CoinHours, TS1, TS2, Coins) ->
     C = Coins,%coins balance
     T = max(TS2 - TS1, 0),%time that passed.
     H = 1000,%Half Life of 1000 blocks is about a week.
-    P + (T*(C - P)div H).
+    P + (T*(C - P) div H).
     
     
 
 ets_read(AID) ->
-    ets_tools:read(AID).
+    ets_tools:read(?MODULE, AID).
+ets_write(AID, Val) ->
+    ets_tools:write(?MODULE, AID, Val).
 balance(Acc) ->
     #acc{
          veo = Veo,
          delegated = Delegated,
          coins_in_votes = CIV,
-         coin_in_posts = CIP,
+         coins_in_posts = CIP,
          coins_in_dms = CID
      } = Acc,
     Veo - Delegated - CIV - CIP - CID.
@@ -512,11 +533,15 @@ delegate(AID, To, Amount)
     gen_server:cast(
       ?MODULE, 
       {delegate, AID, To, Amount}).
-delegate_new(AID, Pub, Amount) 
-  when is_integer(Amount) ->
+delegate_new(AID, Coins, CoinHours) ->
+    Height = height_tracker:check(),
+    delegate_new(AID, Coins, CoinHours, Height).
+delegate_new(AID, Coins, CoinHours, Height)
+  when (is_integer(Coins) and
+        is_integer(CoinHours)) ->
     gen_server:call(
       ?MODULE,
-      {delegate_new, AID, Pub, Amount}).
+      {delegate_new, AID, Coins, CoinHours, Height}).
 pay_interest(AID) ->
     gen_server:cast(?MODULE, {interest, AID}).
 make_post(AID, PID) ->
@@ -570,7 +595,12 @@ remove_small_votes(AID, Min) when
 update_veo_balance(AID, NewBalance) when
       is_integer(NewBalance) ->
     gen_server:cast(?MODULE, {update_veo_balance,
+                              AID,
                               NewBalance}).
+new_account() ->
+    Height = height_tracker:check(),
+    gen_server:call(?MODULE, 
+                    {new_account, Height}).
 
     
     
@@ -586,7 +616,10 @@ dms(AID) ->
     case ets_read(AID) of
         error -> 
             {error, <<"account doesn't exist">>};
-        {ok, A} -> A#acc.dms
+        {ok, A} -> {A#acc.sent_unread_dms,
+                    A#acc.sent_read_dms,
+                    A#acc.received_unread_dms,
+                    A#acc.received_read_dms}
     end.
 delegated_to(AID) ->
     case ets_read(AID) of
@@ -659,8 +692,17 @@ rsi2([{PID, Amount, _}|Votes], Min, R, C)
 rsi2([X|Votes], Min, R, C) ->
     rsi2(Votes, Min, [X|R], C).
 
+remove_mid(MID, L) ->
+    rm2(MID, L, []).
+rm2(_MID, [], _R) ->
+    error;
+rm2(MID, [MID|T], R) ->
+    {ok, lists:reverse(R) ++ T};
+rm2(MID, [A|T], R) ->
+    rm2(MID, T, [A|R]).
 
-    
+
+                          
 
 
 
@@ -674,3 +716,58 @@ cron() ->
 %        {ok, H} -> H;
 %        _ -> 0
 %    end.
+
+test() ->
+    AID1 = new_account(),
+    update_veo_balance(AID1, 13300), 
+    update_nonce(AID1, 2),
+    change_coin_hours(AID1, 12000),
+   
+    AID2 = delegate_new(AID1, 150, 0),
+    change_coin_hours(AID2, 15000),
+
+    make_post(AID1, 4),
+    make_post(AID1, 5),
+    remove_post(AID1, 4),
+    
+    make_vote(AID2, 5, 25),
+    remove_vote(AID2, 5),
+    make_vote(AID2, 5, 20),
+
+    follow(AID2, AID1),
+    unfollow(AID2, AID1),
+    follow(AID2, AID1),
+
+    unfollow(AID1, AID2),
+    follow(AID2, AID1),
+
+    send_dm(AID2, AID1, 6),
+    send_dm(AID2, AID1, 7),
+    send_dm(AID2, AID1, 8),
+    send_dm(AID2, AID1, 9),
+    mark_read_dm(AID2, AID1, 6),
+    mark_read_dm(AID2, AID1, 7),
+    remove_read_dm(AID2, AID1, 6),
+    remove_unread_dm(AID2, AID1, 8),
+
+
+    change_name(AID1, <<"alice">>),
+    change_description(AID1, <<"first user">>),
+   
+    
+    make_vote(AID1, 11, 10),
+    make_vote(AID1, 12, 15),
+    make_vote(AID1, 13, 20),
+    make_vote(AID1, 14, 25),
+    scale_votes(AID1, 1000000 div 5),
+    remove_small_votes(AID1, 3),
+    timer:sleep(300),
+    {AID1, AID2,
+     read(AID1, 0),
+     read(AID2, 0),
+     following(AID2),
+     dms(AID1),
+     delegated_to(AID1),
+     delegated_by(AID2),
+     posts(AID1),
+     votes(AID2)}.
