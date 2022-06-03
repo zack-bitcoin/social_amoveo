@@ -9,9 +9,13 @@
 
 -export([start_link/0]).
 
--export([init/1]).
+-export([init/1, stop/0]).
 
 -define(SERVER, ?MODULE).
+
+-define(keys, 
+          [accounts, pubkeys, posts, 
+           dms, height_tracker, settings]).
 
 start_link() ->
     supervisor:start_link({local, ?SERVER}, ?MODULE, []).
@@ -34,8 +38,12 @@ init([]) ->
                  intensity => 0,
                  period => 1},
     ChildSpecs = 
-        child_maker(
-          [scan_height, accounts, pubkeys, posts, 
-           dms, height_tracker, settings]),
+        child_maker(?keys),
     {ok, {SupFlags, ChildSpecs}}.
 
+    
+stop() -> child_killer(?keys).
+child_killer([]) -> [];
+child_killer([H|T]) -> 
+    supervisor:terminate_child(social_amoveo_sup, H),
+    child_killer(T).

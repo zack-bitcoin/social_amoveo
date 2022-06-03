@@ -699,12 +699,8 @@ rm2(MID, [MID|T], R) ->
 rm2(MID, [A|T], R) ->
     rm2(MID, T, [A|R]).
 
-
-                          
-
-
 block_cron() ->
-    timer:sleep(5000),
+    timer:sleep(1000),
     block_scan(),
     block_cron().
 unused() ->
@@ -722,7 +718,9 @@ block_scan() ->
     X = utils:talk({height}),
     case X of
         {ok, Height} ->
-            Start2 = max(0, scan_height:read()),
+            %Start2 = max(0, scan_height:read()),
+            Start2 = 
+                max(0, height_tracker:check()),
 %    spawn(fun() ->
             scan_history(Start2, Height+1);
         _ -> ok
