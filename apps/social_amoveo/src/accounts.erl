@@ -3,7 +3,7 @@
 -export([start_link/0,code_change/3,handle_call/3,handle_cast/2,handle_info/2,init/1,terminate/2,
 
          %paralisable reading
-         read/1, read/2,
+         balance_read/1, balance_read/2,
          following/1, dms/1,
          delegated_to/1,delegated_by/1,
          posts/1, votes/1,
@@ -15,7 +15,7 @@
          delegate_new/4,
          pay_interest/1,%update the coin-hours balance after a period of time. Removing coins that expired, and paying out new coin-hours based on the number of coins held.
          make_post/2, remove_post/2,
-         make_vote/3, remove_vote/2, 
+         make_vote/4, remove_vote/2, 
          follow/2, unfollow/2,
          send_dm/3, mark_read_dm/3, 
          remove_unread_dm/3, remove_read_dm/3,
@@ -26,9 +26,10 @@
          remove_small_votes/2,
          update_veo_balance/2,
          new_account/0,
-         test/0,
+         test/1, broke_accounts/1,
 
-         block_cron/0]).
+         block_cron/0, block_scan/0,
+         repossess_cron/0]).
 
 -record(acc, 
         {%id, pubkey, 
@@ -52,11 +53,12 @@
          posts = [], %{post_id, timestamp, upvotes, downvotes} posts that we authored, in chronological order, recent posts first.
          votes = [] %{post_id, amount, timestamp}
         }).
-
+-define(repossess_period, 10000).
 
 init(ok) -> 
     process_flag(trap_exit, true),
     Top = ets_tools:load_ets(?MODULE),
+    io:fwrite("accounts init\n"),
     {ok, Top}.
 start_link() -> gen_server:start_link({local, ?MODULE}, ?MODULE, ok, []).
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
@@ -111,12 +113,10 @@ handle_cast({update_nonce, AID, Nonce}, X) ->
     end,
     {noreply, X};
 handle_cast({send_dm, From, To, MID}, X) ->
-    io:fwrite("send dm internal\n"),
     case {ets_read(From), ets_read(To)} of
         {error, _} -> ok;
         {_, error} -> ok;
         {{ok, F}, {ok, T}} ->
-            io:fwrite("send dm 2\n"),
             F2 = F#acc{
                    sent_unread_dms = 
                        [MID|F#acc.sent_unread_dms],
@@ -262,7 +262,7 @@ handle_cast({unfollow, AID, Leader}, X) ->
             end
     end,
     {noreply, X};
-handle_cast({vote, AID, PID, Amount}, X) ->
+handle_cast({vote, AID, PID, Amount, D}, X) ->
     case ets_read(AID) of
         error -> ok;
         {ok, A} ->
@@ -270,7 +270,7 @@ handle_cast({vote, AID, PID, Amount}, X) ->
                 erlang:timestamp(),
             TS = {TSA, TSB, 0},
             A2 = A#acc{
-                   votes = [{PID, Amount, TS}|A#acc.votes],
+                   votes = [{PID, Amount, D, TS}|A#acc.votes],
                    coins_in_votes = 
                        A#acc.coins_in_votes + 
                        Amount
@@ -284,7 +284,7 @@ handle_cast({remove_vote, AID, PID}, X) ->
         {ok, A} ->
             case grab_vote(PID, A#acc.votes) of
                 error -> ok;
-                {{_, Amount, _}, Rest} ->
+                {{_, Amount, _, _}, Rest} ->
                     A2 = A#acc{
                            votes = Rest,
                            coins_in_votes =
@@ -331,15 +331,20 @@ handle_cast({remove_post, AID, PID}, X) ->
     end,
     {noreply, X};
 handle_cast({interest, AID}, X) -> 
-    case read(AID) of
+    case balance_read(AID) of
         error -> ok;
         {ok, A} ->
             ets_write(AID, A)
     end,
     {noreply, X};
 handle_cast({change_coin_hours, AID, D}, X) -> 
-    case ets_read(AID) of
+    case balance_read(AID) of
         error -> ok;
+        {ok, empty} ->
+            A3 = #acc{
+              coin_hours = D
+             },
+            ets_write(AID, A3);
         {ok, A} ->
             A2 = A#acc{
                    coin_hours = 
@@ -413,14 +418,22 @@ handle_cast({remove_small_votes, AID, Min}, X) ->
     {noreply, X};
 handle_cast({update_veo_balance, AID, NewBalance},
             X) -> 
-    case read(AID) of
+    case balance_read(AID) of
         error -> ok;
+        {ok, empty} ->
+            A3 = #acc{
+              veo = NewBalance
+             },
+            ets_write(AID, A3);
         {ok, A} ->
             A2 = A#acc{
                    veo = NewBalance
                   },
             ets_write(AID, A2)
     end,
+    {noreply, X};
+handle_cast({repossess, BrokeAccounts}, X) -> 
+    repossess_internal(BrokeAccounts),
     {noreply, X};
 handle_cast(_, X) -> {noreply, X}.
 handle_call({new_account, Height}, _, X) -> 
@@ -480,13 +493,14 @@ handle_call({delegate_new, AID, Coins,
     end;
 handle_call(_, _From, X) -> {reply, X, X}.
 
-read(AID) ->
+balance_read(AID) ->
     Height = height_tracker:check(),
-    read(AID, Height).
-read(AID, Height) ->
+    balance_read(AID, Height).
+balance_read(AID, Height) ->
     %reads an account from the database, and updates the coin-hours to be current
     case ets_read(AID) of
         error -> error;
+        {ok, empty} -> {ok, empty};
         {ok, A} ->
             #acc{
           coin_hours = CoinHours,
@@ -502,7 +516,8 @@ read(AID, Height) ->
 new_balance(CoinHours, TS1, TS2, Coins) ->
 %formula for updating coin-hours.
     P = CoinHours,%previous balance of coins hours.
-    C = Coins,%coins balance
+    %coins balance, 
+    C = Coins - settings:minimum_account_balance(),
     T = max(TS2 - TS1, 0),%time that passed.
     H = 1000,%Half Life of 1000 blocks is about a week.
     P + (T*(C - P) div H).
@@ -548,9 +563,10 @@ make_post(AID, PID) ->
 remove_post(AID, PID) ->
     gen_server:cast(
       ?MODULE, {remove_post, AID, PID}).
-make_vote(AID, PID, Amount) ->
+make_vote(AID, PID, Amount, D) 
+  when ((D == up) or (D == down)) ->
     gen_server:cast(
-      ?MODULE, {vote, AID, PID, Amount}).
+      ?MODULE, {vote, AID, PID, Amount, D}).
 remove_vote(AID, PID) ->
     gen_server:cast(
       ?MODULE, {remove_vote, AID, PID}).
@@ -651,6 +667,7 @@ rpfl2(I, [{I, _, _, _}|T], R) ->
 rpfl2(_, [], _) ->
     error;
 rpfl2(I, [H|T], R) ->
+    {_, _, _, _} = H,
     rpfl2(I, T, [H|R]).
 
 remove_leader(Leader, L) ->
@@ -664,9 +681,10 @@ remove_leader2(_, [], _) ->
 
 grab_vote(PID, Votes) ->
     gv2(PID, Votes, []).
-gv2(I, [{I, A, B}|T], R) ->
-    {{I, A, B}, lists:reverse(R) ++ T};
+gv2(I, [{I, A, B, D}|T], R) ->
+    {{I, A, B, D}, lists:reverse(R) ++ T};
 gv2(I, [H|T], R) ->
+    {_, _, _, _} = H,
     gv2(I, T, [H|R]);
 gv2(_, [], _) ->
     error.
@@ -675,19 +693,21 @@ scale_internal(Votes, N) ->
     si2(Votes, N, [], 0).
 si2([], _, R, C) ->
     {lists:reverse(R), C};
-si2([{PID, Amount, TS}|Votes], N, R, C) ->
+si2([{PID, Amount, TS, D}|Votes], N, R, C) ->
     Rest = Amount * N div 1000000,
     Recovered = Amount - Rest,
-    si2(Votes, N, [{PID, Rest, TS}|R],C+Recovered).
+    si2(Votes, N, [{PID, Rest, TS, D}|R],
+        C+Recovered).
 
 remove_small_internal(Votes, Min) ->
     rsi2(Votes, Min, [], 0).
 rsi2([], _, R, C) ->
     {lists:reverse(R), C};
-rsi2([{PID, Amount, _}|Votes], Min, R, C) 
+rsi2([{PID, Amount, _, _}|Votes], Min, R, C) 
   when (Amount < Min) ->
     rsi2(Votes, Min, R, C+Amount);
 rsi2([X|Votes], Min, R, C) ->
+    {_, _, _, _} = X,
     rsi2(Votes, Min, [X|R], C).
 
 remove_mid(MID, L) ->
@@ -699,21 +719,248 @@ rm2(MID, [MID|T], R) ->
 rm2(MID, [A|T], R) ->
     rm2(MID, T, [A|R]).
 
+remove_delegated(AID, []) -> [];
+remove_delegated(AID, [{AID, _}|T]) -> 
+    T;
+remove_delegated(AID, [X|T]) -> 
+    {_, _} = X,
+    [X|remove_delegated(AID, T)].
+
+repossess_cron() ->
+    spawn(fun() ->
+                  timer:sleep(?repossess_period),
+                  repossess_cron2(),
+                  repossess_cron()
+          end).
+repossess_cron2() ->
+    BA = broke_accounts(1),
+    case BA of
+        [] -> ok;
+        _ ->
+            gen_server:cast(
+              ?MODULE, {repossess, BA})
+    end.
+          
+    
+
+broke_accounts(N) ->
+    %a list of all the accounts that have non-positive coin-hours, and non-positive coins.
+    case balance_read(N) of
+        error -> [];
+        {ok, empty} -> broke_accounts(N+1);
+        {ok, A} ->
+            CHs = A#acc.coin_hours,
+            B = balance(A),
+            if
+                (CHs > 0) -> broke_accounts(N+1);
+                (B > 0) -> broke_accounts(N+1);
+                true ->
+                    [{N, A, -CHs}|
+                     broke_accounts(N+1)]
+            end
+    end.
+repossess_internal([]) -> ok;
+repossess_internal([{AID, _A0, CH}|R]) -> 
+    case balance_read(AID) of
+        error -> ok;
+        {ok, empty} -> ok;
+        {ok, A} ->
+            CHs = A#acc.coin_hours,
+            B = balance(A),
+            if
+                (CHs > 0) -> ok;
+                (B > 0) -> ok;
+                true ->
+                    repossess_delegation(AID, A, -CHs)
+            end
+    end,
+    repossess_internal(R).
+repossess_delegation(_, _, Amount) 
+  when (Amount < 0) ->
+    %now it has a positive amount of coins.
+    ok;
+repossess_delegation(ID, A, Amount) ->
+    %This account has non-positive coins, and non-positive coin-hours.
+    %keep recovering coins until it has a positive amount of coins.
+    D = A#acc.delegated_to,
+    case D of
+        [] -> 
+            repossess_votes(ID, A, Amount);
+        [{AID2, Balance}|T] ->
+            A2 = A#acc{
+                   delegated = 
+                       A#acc.delegated +
+                       Balance,
+                   delegated_to = T
+                  },
+            ets_write(ID, A2),
+            case balance_read(AID2) of
+                error -> ok;
+                {ok, A3} ->
+                    A4 = A3#acc{
+                           delegated = 
+                               A3#acc.delegated -
+                               Balance,
+                           delegated_by = 
+                               remove_delegated(
+                                 ID, 
+                                 A3#acc.delegated_by)},
+                    ets_write(AID2, A4)
+            end,
+            repossess_delegation(ID, A2, Amount - Balance)
+    end.
+repossess_votes(_, _, Amount) when (Amount < 0) ->
+    %now it has a positive amount of coins.
+    ok;
+repossess_votes(ID, A, Amount) ->
+    V = A#acc.votes,
+    case V of
+        [] ->
+            repossess_RR_msgs(ID, A, Amount);
+        [{PID, VA, Direction, TS}|T] ->
+            case Direction of
+                up -> posts:upvote(PID, -VA);
+                down -> posts:downvote(PID, -VA)
+            end,
+            A2 = A#acc{
+                   votes = T,
+                   coins_in_votes =
+                       A#acc.coins_in_votes -
+                       settings:vote_cost()
+                  },
+            ets_write(ID, A2),
+            repossess_votes(ID, A2, Amount - VA)
+    end.
+repossess_RR_msgs(_, _, Amount) 
+  when (Amount < 0) ->
+    %now it has a positive amount of coins.
+    ok;
+repossess_RR_msgs(ID, A, Amount) ->
+    RR = A#acc.received_read_dms,
+    case RR of
+        [] ->
+            repossess_SU_msgs(ID, A, Amount);
+        [MID|T] ->
+            DM = dms:read(MID),
+            Sender = dms:from(DM),
+            Lockup = dms:lockup(DM),
+            Lockup2 = 
+                new_balance(
+                  Lockup, 
+                  dms:timestamp(DM), 
+                  height_tracker:check(), 
+                  0),
+            dms:delete(MID),
+            A2 = A#acc{
+                   received_read_dms = T,
+                   coins_in_dms = 
+                       A#acc.coins_in_dms - 
+                       dms:cost(DM)
+                  },
+            ets_write(ID, A2),
+            case ets_read(Sender) of
+                error -> ok;
+                {ok, A3} ->
+                    A4 = A3#acc{
+                           sent_read_dms = 
+                               remove_mid(
+                                 MID, 
+                                 A3#acc.sent_read_dms),
+                           coin_hours = 
+                               A3#acc.coin_hours +
+                               Lockup2
+                          },
+                    ets_write(Sender, A4)
+            end,
+            repossess_RR_msgs(ID, A2, Amount)
+    end.
+repossess_SU_msgs(_, _, Amount) when (Amount < 0) ->
+    %now it has a positive amount of coins.
+    ok;
+repossess_SU_msgs(ID, A, Amount) ->
+    SU = A#acc.sent_unread_dms,
+    case SU of
+        [] ->
+            repossess_posts(ID, A, Amount);
+         [MID|T] ->
+            DM = dms:read(MID),
+            Recipient = dms:to(DM),
+            Lockup = dms:lockup(DM),
+            %some of the locked coinhours expired while being locked up.
+            Lockup2 = 
+                new_balance(
+                  Lockup, 
+                  dms:timestamp(DM), 
+                  height_tracker:check(), 
+                  0),
+            dms:delete(MID),
+            CH2 = A#acc.coin_hours + Lockup2,
+            A2 = A#acc{
+                   coin_hours = CH2,
+                   sent_unread_dms = T,
+                   coins_in_dms = 
+                       A#acc.coins_in_dms -
+                       dms:cost(DM)
+                   },
+            ets_write(ID, A2),
+            case ets_read(Recipient) of
+                error -> ok;
+                {ok, A3} ->
+                    A4 = A3#acc{
+                           received_unread_dms = 
+                               remove_mid(
+                                 MID,
+                                 A3#acc.received_unread_dms)
+                          },
+                    ets_write(Recipient, A4)
+            end,
+            if
+                (CH2 > 0) -> ok;
+                true ->
+                    repossess_SU_msgs(ID, A2, Amount)
+            end
+    end.
+repossess_posts(_, _, Amount) when (Amount < 0) ->
+    %now it has a positive amount of coins.
+    ok;
+repossess_posts(ID, A, Amount) ->
+    P = A#acc.posts, %[{id, ts, up, down}|...]
+    case P of
+        [] ->
+            repossess_everything(ID, A, Amount);
+        [{PID, TS, Up, Down}|R] ->
+            case posts:read(PID) of
+                error -> 
+                    A2 = A#acc{
+                           coins_in_posts =
+                               A#acc.coins_in_posts,
+                           posts = R
+                          },
+                    ets_write(ID, A2);
+                {ok, Post} ->
+                    posts:delete(PID),
+                    A2 = A#acc{
+                           coins_in_posts =
+                               A#acc.coins_in_posts - 
+                               posts:cost(Post),
+                           posts = R
+                          },
+                    ets_write(ID, A2)
+            end,
+            repossess_posts(ID, A2, Amount)
+    end.
+repossess_everything(ID, _A, _Amount) ->
+    %then description, and 
+    %then account id. 
+    %if everything is deleted, store the atom "empty" instead of an account structure.
+    ets_write(ID, empty).
+            
+    
+
 block_cron() ->
     timer:sleep(1000),
-    block_scan(),
+    spawn(fun() -> block_scan() end),
     block_cron().
-unused() ->
-    spawn(fun() ->
-   %               timer:sleep(5000),
-                  timer:sleep(5000)
-                  %block_cron()
-          end),
-    spawn(fun() ->
-                  timer:sleep(5000),
-                  block_scan(),
-                  block_cron()
-          end).
 block_scan() ->
     X = utils:talk({height}),
     case X of
@@ -786,7 +1033,7 @@ load_txs([_|T]) ->
 %        _ -> 0
 %    end.
 
-test() ->
+test(1) ->
     AID1 = new_account(),
     update_veo_balance(AID1, 13300), 
     update_nonce(AID1, 2),
@@ -799,9 +1046,9 @@ test() ->
     make_post(AID1, 5),
     remove_post(AID1, 4),
     
-    make_vote(AID2, 5, 25),
+    make_vote(AID2, 5, 25, up),
     remove_vote(AID2, 5),
-    make_vote(AID2, 5, 20),
+    make_vote(AID2, 5, 20, up),
 
     follow(AID2, AID1),
     unfollow(AID2, AID1),
@@ -824,19 +1071,54 @@ test() ->
     change_description(AID1, <<"first user">>),
    
     
-    make_vote(AID1, 11, 10),
-    make_vote(AID1, 12, 15),
-    make_vote(AID1, 13, 20),
-    make_vote(AID1, 14, 25),
+    make_vote(AID1, 11, 10, up),
+    make_vote(AID1, 12, 15, up),
+    make_vote(AID1, 13, 20, up),
+    make_vote(AID1, 14, 25, up),
     scale_votes(AID1, 1000000 div 5),
     remove_small_votes(AID1, 3),
     timer:sleep(300),
     {AID1, AID2,
-     read(AID1, 0),
-     read(AID2, 0),
+     balance_read(AID1, 0),
+     balance_read(AID2, 0),
      following(AID2),
      dms(AID1),
      delegated_to(AID1),
      delegated_by(AID2),
      posts(AID1),
-     votes(AID2)}.
+     votes(AID2)};
+test(2) ->
+    %try triggering the repossession mechanism.
+    AID1 = new_account(),
+    update_veo_balance(AID1, 12000),
+    change_coin_hours(AID1, 13000),
+    make_post(AID1, 1),
+    make_vote(AID1, 1, 5000, up),
+    
+
+    AID2 = delegate_new(AID1, 2000, 2000),
+    
+    follow(AID2, AID1),
+    send_dm(AID1, AID2, 1),
+    send_dm(AID1, AID2, 2),
+    mark_read_dm(AID1, AID2, 1),
+    
+    change_name(AID1, <<"alice">>),
+    change_description(AID1, <<"first user">>),
+
+    update_veo_balance(AID1, 0),
+    change_coin_hours(AID1, 0),
+
+    repossess_cron2(),
+    timer:sleep(50),
+    B1 = balance_read(AID1, 0),
+
+    update_veo_balance(AID1, -100000000000),
+    change_coin_hours(AID1, -1000000000000),
+
+    repossess_cron2(),
+    timer:sleep(50),
+    B2 = balance_read(AID1, 0),
+
+    {B1, B2}.
+    

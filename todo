@@ -1,5 +1,8 @@
 threads:
 * scan accounts to see if any accounts have negative coins and coin-hours. then start undelegating, then deleting old votes, then old read messages, and then old posts, and then description, and then account id. keep going until coins is positive, or the account is gone.
+- implement accounts:reposses(ID, A, Amount).
+
+%Every time an account is paying coin-hours, we need a check to be sure they can afford it. don't let them spend into the negative.
 
 todo in signed_handler.erl
 todo in http_handler.erl

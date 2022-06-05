@@ -2,11 +2,12 @@
 -behaviour(gen_server).
 -export([start_link/0,code_change/3,handle_call/3,handle_cast/2,handle_info/2,init/1,terminate/2,
          new/2, comment/3, upvote/2, downvote/2, 
-         delete/1, read/1, test/0]).
+         delete/1, read/1, test/0,
+         cost/1]).
 
 -record(post, 
         {id, %number bigger than 0
-         text = "", 
+         text = <<"">>, 
          author, %account id
          timestamp,%when posted
          upvotes = 0,
@@ -14,6 +15,11 @@
          comments = [], %ids of other posts
          parent = 0 %id of parent, or 0 if it is top level
         }).
+
+cost(P) ->
+    settings:post_cost() +
+        (settings:coins_per_byte() *
+             size(P#post.text)).
 
 init(ok) -> 
     process_flag(trap_exit, true),
@@ -98,19 +104,16 @@ downvote(PID, Amount) ->
       ?MODULE, {vote, -1, PID, Amount}).
 delete(PID) ->
     gen_server:cast(?MODULE, {delete, PID}).
-read(L) ->
-    lists:map(
-      fun(PID) ->
-              case ets:lookup(?MODULE, PID) of
-                  [] -> <<"empty">>;
-                  [{PID, Post}|_] -> Post
-              end
-      end,
-      L).
+read(PID) ->
+    case ets:lookup(?MODULE, PID) of
+        [] -> error;
+        [{PID, Post}|_] -> {ok, Post}
+    end.
 
 test() ->
     Acc1 = 1,
     P1 = new(<<"first post">>, Acc1),
     C1 = comment(<<"a comment">>, Acc1, P1),
     C2 = comment(<<"a second comment">>, Acc1, P1),
-    read([P1, C1, C2]).
+    lists:map(fun(X) -> {ok, Y} = read(X), Y end,
+              [P1, C1, C2]).

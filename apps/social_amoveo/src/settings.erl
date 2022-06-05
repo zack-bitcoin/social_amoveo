@@ -8,8 +8,11 @@
          dm_cost/0,
          post_cost/0,
          follow_cost/0,
+         vote_cost/0,
          coins_per_byte/0,
-         server_id/0
+         server_id/0,
+         minimum_account_balance/0
+         
 ]).
 
 -record(d, {server_id}).
@@ -60,10 +63,10 @@ half_life() -> %in blocks
 cpu() ->
     1000000.
 dm_cost() ->
-    2.
-post_cost() ->
-    2.
-follow_cost() ->
-    2.
-%(coin-hours produced per hour are the same as the market cap. So if you have (Market cap) many coin-hours, then you should be able to use nearly 100% of the server's CPU per hour)
-    
+    30 * coins_per_byte().%in coin hours, to store a dm. + the cost per byte of the message.
+post_cost() -> 38 * coins_per_byte().
+follow_cost() -> 4 * coins_per_byte().
+vote_cost() -> 20 * coins_per_byte().
+%(coin-hours produced per block are the same as the market cap. So if you have (Market cap) many coin-hours, then you should be able to use nearly 100% of the server's CPU per hour)
+
+minimum_account_balance() -> 66 * coins_per_byte().

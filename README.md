@@ -6,9 +6,9 @@ Uses coin-hours from Amoveo to meter access to a forum.
 It is a work in progress.
 Notes on what more needs to be built is in the [todo](todo) file.
 
-In order to run this program, you need to be running an amoveo full node. https://github.com/zack-bitcoin/amoveo
+In order to run this program, you need to be running an amoveo full node first. https://github.com/zack-bitcoin/amoveo
 
-and, you need to edit the /config/sys.config.tmpl file to support this.
+You need to edit the /config/sys.config.tmpl file from the Amoveo full node.
 Here is what the values should be in that file
 ```
     {block_meta, true},
@@ -29,6 +29,7 @@ attach to the REPL of a running program
 
 after attaching, you can shut it off
 ``` utils:off() ```
+It is important to turn it off this way, because then you don't need to re-scan the blocks when you turn it on again.
 
 to delete the database and start a fresh server with zero accounts and zero posts.
 ``` sh clean.sh ```

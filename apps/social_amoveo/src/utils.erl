@@ -4,7 +4,7 @@
 
 off() ->
     social_amoveo_sup:stop(),
-    ok = application:stop(amoveo_explorer),
+    ok = application:stop(social_amoveo),
     halt().
 
 talk(X) ->
