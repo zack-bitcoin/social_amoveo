@@ -26,8 +26,11 @@
          remove_small_votes/2,
          update_veo_balance/2,
          new_account/0,
+
+         %tests
          test/1, broke_accounts/1,
 
+         %background threads
          block_cron/0, block_scan/0,
          repossess_cron/0]).
 
@@ -541,11 +544,11 @@ balance(Acc) ->
 update_nonce(AID, Nonce) ->
     gen_server:cast(?MODULE, 
                     {update_nonce, AID, Nonce}).
-delegate(AID, To, Amount) 
+delegate(ID, To, Amount) 
   when is_integer(To) and is_integer(Amount) ->
     gen_server:cast(
       ?MODULE, 
-      {delegate, AID, To, Amount}).
+      {delegate, ID, To, Amount}).
 delegate_new(AID, Coins, CoinHours) ->
     Height = height_tracker:check(),
     delegate_new(AID, Coins, CoinHours, Height).

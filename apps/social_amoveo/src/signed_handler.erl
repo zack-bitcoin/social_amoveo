@@ -28,11 +28,13 @@ handle(Req, State) ->
     {ok, Req4, State}.
 doit({test}, _) -> {ok, "success"};
 doit({balance}, AID) ->
-    %returns your balance in coins and in coin-hours. Also tells how many coins you have delegated, ho
-    {ok, 0};
+    %static sized info about your account.
+    A = accounts:balance_read(AID),
+    A2 = tuple_to_list(A),
+    {A3, _} = lists:split(11, A2),
+    {ok, list_to_tuple(A3)};
 
 %todo
-%delegate coins to another account. so you can use cold storage funds.
 %* delegate coins to another account. (so you can use your cold storage funds).
 %* choose an account name. (you get refunded coins for making your name shorter)
 %* choose a description for your account.(you get refunded coins for making your description shorter.)
