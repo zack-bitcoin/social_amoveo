@@ -5,6 +5,7 @@
          send/3, send/4, unlock/1, cost/1,
 
          lockup/1,to/1, timestamp/1,
+         content/1, from/1, was_read/1,
 
          test/0]).
 
@@ -23,6 +24,13 @@ to(X) ->
     X#x.to.
 timestamp(X) ->
     X#x.timestamp.
+from(X) ->
+    X#x.from.
+content(X) ->
+    X#x.content.
+was_read(X) ->
+    X#x.read.
+    
 
 cost(X) ->
     settings:dm_cost() +
@@ -73,9 +81,9 @@ handle_call({send, Text, From, To, Lockup},
     {reply, Top, Top+1};
 handle_call({read, ID}, _From, X) -> 
     M = case ets:lookup(?MODULE, ID) of
-            [] -> <<"no message with that id">>;
+            [] -> {error, "no message with that id"};
             [{ID, Msg}|_] ->
-                Msg 
+                {ok, Msg}
         end,
     {reply, M, X};
 handle_call(_, _From, X) -> {reply, X, X}.

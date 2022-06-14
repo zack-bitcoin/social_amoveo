@@ -14,14 +14,35 @@ handle(Req, State) ->
     {<<"Access-Control-Allow-Origin">>, <<"*">>}],
     Req4 = cowboy_req:reply(200, Headers, D, Req2),
     {ok, Req4, State}.
+
+sleeper() ->
+    timer:sleep(2000).
+    
+
 doit({test}) -> {ok, "success"};
 
 %todo
 %top posts
+doit({top}) -> 
+    sleeper(),
+    {ok, element(1, popular_posts_cache:read())};
+
+%most hated posts
+doit({top, 0, 2}) -> 
+    sleeper(),
+    {ok, element(2, popular_posts_cache:read())};
+
 % top posts from an account
-%recent posts from an account
-%votes from an account
-%* settings:server_id()
+doit({top, AID}) -> 
+    sleeper(),
+    {ok, account:posts(AID)};
+
+doit({repo, AID}) ->
+    sleeper(),
+    {ok, acount:votes(AID)};
+
+doit({sid}) ->
+    {ok, settings:server_id()};
 
 doit(X) ->
     io:fwrite("http handler doit fail"),

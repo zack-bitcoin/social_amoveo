@@ -11,7 +11,8 @@
          vote_cost/0,
          coins_per_byte/0,
          server_id/0,
-         minimum_account_balance/0
+         minimum_account_balance/0,
+         delegation_cost/0
          
 ]).
 
@@ -67,6 +68,13 @@ dm_cost() ->
 post_cost() -> 38 * coins_per_byte().
 follow_cost() -> 4 * coins_per_byte().
 vote_cost() -> 20 * coins_per_byte().
+delegation_cost() -> 20 * coins_per_byte().
 %(coin-hours produced per block are the same as the market cap. So if you have (Market cap) many coin-hours, then you should be able to use nearly 100% of the server's CPU per hour)
 
 minimum_account_balance() -> 66 * coins_per_byte().
+
+api_cost() ->
+   %assuming we can do 500 basic api requests per second. there are 600 seconds per block. so we want to do 300 000 api requests per block.
+    %coins() are created per block.
+    %so for every veo you have, you can do almost 4 api requests per second.
+    coins() div 300000.

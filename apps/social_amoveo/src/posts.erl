@@ -3,7 +3,12 @@
 -export([start_link/0,code_change/3,handle_call/3,handle_cast/2,handle_info/2,init/1,terminate/2,
          new/2, comment/3, upvote/2, downvote/2, 
          delete/1, read/1, test/0,
+
+         upvotes/1, downvotes/1, id/1,
+
          cost/1]).
+-define(LOC, "posts.db").
+
 
 -record(post, 
         {id, %number bigger than 0
@@ -15,6 +20,14 @@
          comments = [], %ids of other posts
          parent = 0 %id of parent, or 0 if it is top level
         }).
+upvotes(P) ->
+    P#post.upvotes.
+downvotes(P) ->
+    P#post.downvotes.
+id(P) ->
+    P#post.id.
+
+-record(x, {top}).
 
 cost(P) ->
     settings:post_cost() +
@@ -24,12 +37,23 @@ cost(P) ->
 init(ok) -> 
     process_flag(trap_exit, true),
     Top = ets_tools:load_ets(?MODULE),
-    {ok, Top}.
+%    {Loved, Hated} = 
+%        case db:read(?LOC) of
+%            {error, R} ->
+%                io:fwrite(R),
+%                1=2;
+%            <<>> -> [];
+%           X -> X
+%        end,
+    {ok, #x{top = Top}}.%, %the id that will be assigned to the next post created.
+%            loved = Loved,%the most popular posts
+%            hated = Hated}}.%the least popular posts
 start_link() -> gen_server:start_link({local, ?MODULE}, ?MODULE, ok, []).
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
-terminate(_, Top) -> 
-    ets:insert(?MODULE, [{top, Top}]),
+terminate(_, X) -> 
+    ets:insert(?MODULE, [{top, X#x.top}]),
     ets_tools:save_table(?MODULE),
+%    db:save(?LOC, {X#x.loved, X#x.hated}),
     io:format("died!"), 
     ok.
 handle_info(_, X) -> {noreply, X}.
@@ -37,7 +61,8 @@ handle_cast({delete, PID}, X) ->
     ets:delete(?MODULE, PID),
     {noreply, X};
 handle_cast(_, X) -> {noreply, X}.
-handle_call({post, Text, Author}, _From, Top) -> 
+handle_call({post, Text, Author}, _From, 
+            X = #x{top = Top}) -> 
     {T1, T2, _} = erlang:timestamp(),
     P = #post{
       id = Top,
@@ -46,9 +71,9 @@ handle_call({post, Text, Author}, _From, Top) ->
       timestamp = {T1, T2, 0}
      },
     ets:insert(?MODULE, [{Top, P}]),
-    {reply, Top, Top+1};
+    {reply, Top, X#x{top = Top+1}};
 handle_call({comment, Text, Author, ParentID}, 
-            _From, Top) -> 
+            _From, X = #x{top = Top}) -> 
     {T1, T2, _} = erlang:timestamp(),
     case ets:lookup(?MODULE, ParentID) of
         [] -> {reply, <<"invalid parent">>, Top};
@@ -68,13 +93,13 @@ handle_call({comment, Text, Author, ParentID},
             ets:insert(?MODULE, [{Top, P}]),
             ets:insert(
               ?MODULE, [{ParentID, Parent2}]),
-            {reply, Top, Top+1}
+            {reply, Top, X#x{top = Top+1}}
     end;
-handle_call({vote, Type, PID, Amount}, _, Top) -> 
+handle_call({vote, Type, PID, Amount}, _, X) -> 
     case ets:lookup(?MODULE, PID) of
         [] -> 
             %error, vote on post that does not exist.
-            {reply, <<"error, post does not exist">>, Top};
+            {reply, <<"error, post does not exist">>, X};
         [{PID, Post}|_] ->
             Post2 = 
                 case Type of
@@ -86,7 +111,7 @@ handle_call({vote, Type, PID, Amount}, _, Top) ->
                            }
                 end,
             ets:insert(?MODULE, [{PID, Post2}]),
-            {reply, success, Top}
+            {reply, success, X}
     end;
 handle_call(_, _From, X) -> {reply, X, X}.
 

@@ -11,6 +11,7 @@
          %asynchronous editing
          update_nonce/2,
          delegate/3,%delegate value to an existing account
+         undelegate/2,
          delegate_new/3,%delegate coins and/or coin-hours to create a new account
          delegate_new/4,
          pay_interest/1,%update the coin-hours balance after a period of time. Removing coins that expired, and paying out new coin-hours based on the number of coins held.
@@ -25,7 +26,7 @@
          scale_votes/2,
          remove_small_votes/2,
          update_veo_balance/2,
-         new_account/0,
+         new_account/0, charge/2,
 
          %tests
          test/1, broke_accounts/1,
@@ -58,6 +59,15 @@
         }).
 -define(repossess_period, 10000).
 
+sent_unread(X) ->
+    X#acc.sent_unread_dms.
+sent_read(X) ->
+    X#acc.sent_read_dms.
+received_unread(X) ->
+    X#acc.received_unread_dms.
+received_read(X) ->
+    X#acc.received_read_dms.
+
 init(ok) -> 
     process_flag(trap_exit, true),
     Top = ets_tools:load_ets(?MODULE),
@@ -87,7 +97,8 @@ handle_cast({delegate, AID, To, Amount}, Top) ->
                       A1#acc{
                         delegated = 
                             A1#acc.delegated +
-                            Amount,
+                            Amount + 
+                            settings:delegation_cost(),
                         delegated_to = 
                             [{To, Amount}|
                              A1#acc.delegated_to]
@@ -105,6 +116,37 @@ handle_cast({delegate, AID, To, Amount}, Top) ->
             end
     end,
     {noreply, Top};
+handle_cast({undelegate, From, To}, X) ->
+    case balance_read(From) of
+        error -> ok;
+        {ok, A} ->
+            Amount = delegated_amount(
+                       To, A#acc.delegated_to),
+            DT = 
+                remove_delegated(
+                  To, A#acc.delegated_to),
+            A2 = A#acc{
+                   delegated = A#acc.delegated -
+                       Amount - 
+                       settings:delegation_cost(),
+                   delegated_to = DT
+                  },
+            case balance_read(To) of
+                error -> ok;
+                {ok, A3} ->
+                    A4 = A3#acc{
+                           delegated = delegated +
+                               Amount,
+                           delegated_by = 
+                               remove_delegated(
+                                 From, 
+                                 A3#acc.delegated_by)
+                          },
+                    ets_write(From, A2),
+                    ets_write(To, A4)
+            end
+    end,
+    {noreply, X};
 handle_cast({update_nonce, AID, Nonce}, X) -> 
     case ets_read(AID) of
         error -> ok;
@@ -272,11 +314,15 @@ handle_cast({vote, AID, PID, Amount, D}, X) ->
             {TSA, TSB, _} = 
                 erlang:timestamp(),
             TS = {TSA, TSB, 0},
+            %todo
+            %what if we are voting on the same thing again? just sticking it on the head of the list isn't enough. we should probably be using a dictionary to store the votes.
             A2 = A#acc{
-                   votes = [{PID, Amount, D, TS}|A#acc.votes],
+                   votes = [{PID, Amount, D, TS}|
+                            A#acc.votes],
                    coins_in_votes = 
                        A#acc.coins_in_votes + 
-                       Amount
+                       Amount +
+                       settings:vote_cost()
                   },
             ets_write(AID, A2)
     end,
@@ -292,7 +338,8 @@ handle_cast({remove_vote, AID, PID}, X) ->
                            votes = Rest,
                            coins_in_votes =
                                A#acc.coins_in_votes - 
-                               Amount
+                               Amount -
+                               settings:vote_cost()
                           },
                     ets_write(AID, A2)
             end
@@ -544,11 +591,11 @@ balance(Acc) ->
 update_nonce(AID, Nonce) ->
     gen_server:cast(?MODULE, 
                     {update_nonce, AID, Nonce}).
-delegate(ID, To, Amount) 
+delegate(From, To, Amount) 
   when is_integer(To) and is_integer(Amount) ->
     gen_server:cast(
       ?MODULE, 
-      {delegate, ID, To, Amount}).
+      {delegate, From, To, Amount}).
 delegate_new(AID, Coins, CoinHours) ->
     Height = height_tracker:check(),
     delegate_new(AID, Coins, CoinHours, Height).
@@ -558,6 +605,8 @@ delegate_new(AID, Coins, CoinHours, Height)
     gen_server:call(
       ?MODULE,
       {delegate_new, AID, Coins, CoinHours, Height}).
+undelegate(From, To) ->
+    gen_server:cast(?MODULE, {undelegate, From, To}).
 pay_interest(AID) ->
     gen_server:cast(?MODULE, {interest, AID}).
 make_post(AID, PID) ->
@@ -571,9 +620,11 @@ make_vote(AID, PID, Amount, D)
     gen_server:cast(
       ?MODULE, {vote, AID, PID, Amount, D}).
 remove_vote(AID, PID) ->
+    %todo. return the vote that gets removed. it is useful in some computations.
     gen_server:cast(
       ?MODULE, {remove_vote, AID, PID}).
-follow(AID, Leader) ->
+follow(AID, Leader) 
+ when (is_integer(AID) and is_integer(Leader)) ->
     gen_server:cast(
       ?MODULE, {follow, AID, Leader}).
 unfollow(AID, Leader) ->
@@ -591,6 +642,22 @@ remove_unread_dm(From, To, MID) ->
 remove_read_dm(From, To, MID) ->
     gen_server:cast(
       ?MODULE, {remove_read_dm, From, To, MID}).
+charge(AID, D)
+  when (is_integer(D) and (D > 0)) ->
+    MinBal = settings:minimum_account_balance(),
+    case balance_read(AID) of
+        error -> {error, <<"that account does not exist">>};
+       {ok, A} ->
+            CH = A#acc.coin_hours,
+            if
+                ((CH - MinBal) > D) ->
+                    change_coin_hours(AID, -D),
+                    ok;
+                true ->
+                    {error, <<"insufficient balance">>}
+            end
+    end.
+change_coin_hours(AID, 0) -> ok;
 change_coin_hours(AID, D) when is_integer(D)->
     gen_server:cast(
       ?MODULE, {change_coin_hours, AID, D}).
@@ -728,6 +795,13 @@ remove_delegated(AID, [{AID, _}|T]) ->
 remove_delegated(AID, [X|T]) -> 
     {_, _} = X,
     [X|remove_delegated(AID, T)].
+
+delegated_amount(To, [{To, A}|_]) -> A;
+delegated_amount(To, [_|T]) ->
+    delegated_amount(To, T);
+delegated_amount(To, []) -> 0.
+
+
 
 repossess_cron() ->
     spawn(fun() ->
