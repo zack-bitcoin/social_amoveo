@@ -26,7 +26,9 @@
          scale_votes/2,
          remove_small_votes/2,
          update_veo_balance/2,
-         new_account/0, charge/2,
+         new_account/1, charge/2,
+
+         pubkey/1,nonce/1,
 
          %tests
          test/1, broke_accounts/1,
@@ -36,7 +38,8 @@
          repossess_cron/0]).
 
 -record(acc, 
-        {%id, pubkey, 
+        {%id, 
+          pubkey, 
          name = <<"">>, description = <<"">>, 
          timestamp, %block when coin-hours was last calculated.
          veo = 0, %how many veo your account owns in the Amoveo blockchain.
@@ -59,6 +62,10 @@
         }).
 -define(repossess_period, 10000).
 
+pubkey(X) ->
+    X#acc.pubkey.
+nonce(X) ->
+    X#acc.nonce.
 sent_unread(X) ->
     X#acc.sent_unread_dms.
 sent_read(X) ->
@@ -486,14 +493,15 @@ handle_cast({repossess, BrokeAccounts}, X) ->
     repossess_internal(BrokeAccounts),
     {noreply, X};
 handle_cast(_, X) -> {noreply, X}.
-handle_call({new_account, Height}, _, X) -> 
+handle_call({new_account, Pub, Height}, _, X) -> 
     case ets_read(X) of
         {ok, _} -> 
             io:fwrite("this should never happen. in account, new_account."),
             ok;
         error ->
             A = #acc{
-              timestamp = Height
+              timestamp = Height,
+              pubkey = Pub
              },
             ets_write(X, A)
     end,
@@ -552,10 +560,8 @@ balance_read(AID, Height) ->
         error -> error;
         {ok, empty} -> {ok, empty};
         {ok, A} ->
-            #acc{
-          coin_hours = CoinHours,
-          timestamp = TS
-         } = A,
+            CoinHours = A#acc.coin_hours,
+            TS = A#acc.timestamp,
             Coins = balance(A),
             TS2 = max(Height, TS),
             {ok, A#acc{
@@ -565,12 +571,38 @@ balance_read(AID, Height) ->
     end.
 new_balance(CoinHours, TS1, TS2, Coins) ->
 %formula for updating coin-hours.
-    P = CoinHours,%previous balance of coins hours.
+    %TODO.
+    %for every block, give Coins, and take away CoinHours/1000.
+    % B2 = (B1 * 999/1000) + Coins
+    % B3 = ((B1 * 999/1000) + Coins) * 999/1000 + Coins
+    % B3 = (B1 * (999/1000)^2) + coins*999/1000 + coins
+    % B4 = (B1 * (999/1000)^3) + coin*(999/1000)^2 + coins*999/1000 + coins
+    % B4 = (B1 * (999/1000)^3) + coins*(f^2 + f + 1)
+
+    %pi from i = 0 to n of f^i (for f >0 and <1)
+    %g = 1-f
+    %pi from i = 0 to n of (1-g)^i (for g >0 and <1)
+    %(1) + (1-g) + (1-2g+g^2) + (1 - 3g + 3g^2 - g^3)
+    %4 - 6g + 4g^2 - g^3
+    % = (1 - (1-g)^4) / g
+    % = (1 - f^4) / (1-f)
+
+    N = TS2 - TS1,
+    F = 999/1000,
+    FN = math:pow(F, N),
+    CM = Coins - settings:minimum_account_balance(),
+    CH2E = (CoinHours * FN) + 
+        (CM * (1 - FN) / (1 - F)),
+    math:floor(CH2E).
+
+
+
+%    P = CoinHours,%previous balance of coins hours.
     %coins balance, 
-    C = Coins - settings:minimum_account_balance(),
-    T = max(TS2 - TS1, 0),%time that passed.
-    H = 1000,%Half Life of 1000 blocks is about a week.
-    P + (T*(C - P) div H).
+%    C = Coins - settings:minimum_account_balance(),
+%    T = max(TS2 - TS1, 0),%time that passed.
+%    H = 1000,%Half Life of 1000 blocks is about a week.
+%    P + (T*(C - P) div H).
     
     
 
@@ -681,10 +713,10 @@ update_veo_balance(AID, NewBalance) when
     gen_server:cast(?MODULE, {update_veo_balance,
                               AID,
                               NewBalance}).
-new_account() ->
+new_account(Pub) ->
     Height = height_tracker:check(),
     gen_server:call(?MODULE, 
-                    {new_account, Height}).
+                    {new_account, Pub, Height}).
 
     
     
@@ -1094,14 +1126,15 @@ load_txs([{[{<<"type">>,<<"account">>},
             _]}|T]) -> 
     AID = case pubkeys:read(P) of
              error -> 
-                  ID = new_account(),
+                  ID = new_account(P),
                   pubkeys:new(P, ID),
                   ID;
              {ok, N} -> N
          end,
     update_veo_balance(AID, B),
     load_txs(T);
-load_txs([_|T]) -> 
+load_txs([H|T]) -> 
+    %io:fwrite(H),
     load_txs(T).
 
 %height_check() ->
@@ -1111,7 +1144,7 @@ load_txs([_|T]) ->
 %    end.
 
 test(1) ->
-    AID1 = new_account(),
+    AID1 = new_account(0),
     update_veo_balance(AID1, 13300), 
     update_nonce(AID1, 2),
     change_coin_hours(AID1, 12000),
@@ -1166,7 +1199,7 @@ test(1) ->
      votes(AID2)};
 test(2) ->
     %try triggering the repossession mechanism.
-    AID1 = new_account(),
+    AID1 = new_account(0),
     update_veo_balance(AID1, 12000),
     change_coin_hours(AID1, 13000),
     make_post(AID1, 1),

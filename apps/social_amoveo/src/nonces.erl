@@ -3,7 +3,8 @@
 
 -module(nonces).
 -behaviour(gen_server).
--export([start_link/0,code_change/3,handle_call/3,handle_cast/2,handle_info/2,init/1,terminate/2]).
+-export([start_link/0,code_change/3,handle_call/3,handle_cast/2,handle_info/2,init/1,terminate/2,
+        check/1, update/2]).
 init(ok) -> 
     process_flag(trap_exit, true),
     ets_tools:load_ets(?MODULE),
@@ -30,6 +31,7 @@ handle_call({check, I}, _From, X) ->
 handle_call(_, _From, X) -> {reply, X, X}.
 
 lookup(I) ->
+    %gen_server:call(?MODULE, {check, I}).
     case ets:lookup(?MODULE, I) of
         [{I, N}|_] -> N;
         [] -> 0
@@ -41,5 +43,6 @@ update(I, Nonce)
         and (Nonce > 0)) ->
     gen_server:cast(?MODULE, {update, I, Nonce}).
 check(I) ->
-    gen_server:call(?MODULE, {check, I}).
+    %lookup(I).
+gen_server:call(?MODULE, {check, I}).
     

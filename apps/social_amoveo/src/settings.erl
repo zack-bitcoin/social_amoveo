@@ -12,7 +12,8 @@
          coins_per_byte/0,
          server_id/0,
          minimum_account_balance/0,
-         delegation_cost/0
+         delegation_cost/0,
+         api_cost/0
          
 ]).
 

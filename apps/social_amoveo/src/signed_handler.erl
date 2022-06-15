@@ -15,8 +15,8 @@ handle(Req, State) ->
     Nonce = element(3, Tx),
     ServerID = element(4, Tx),
     ServerID = settings:server_id(),
-    AID = pubkeys:read(Pub),
-    Acc =  accounts:balance_read(AID),
+    {ok, AID} = pubkeys:read(base64:encode(Pub)),
+    {ok, Acc} =  accounts:balance_read(AID),
     PrevNonce =  accounts:nonce(Acc),
     true = Nonce > PrevNonce,
     D = packer:pack(doit(Tx, AID)),
@@ -31,10 +31,11 @@ doit({balance, _, _, _, AID}, From)
   when is_integer(AID) ->
     %static sized info about an account.
     ok = accounts:charge(From, settings:api_cost()),
-    A = accounts:balance_read(AID),
+    {ok, A} = accounts:balance_read(AID),
     A2 = tuple_to_list(A),
     {A3, _} = lists:split(11, A2),
-    {ok, list_to_tuple(A3)};
+    R = list_to_tuple(A3),
+    {ok, R};
 doit({balance, _, _, _, Pub}, From) ->
     case pubkeys:read(Pub) of
         error -> {ok, <<"that pubkey is not assigned to any account.">>};
@@ -44,7 +45,7 @@ doit({balance, _, _, _, Pub}, From) ->
             A = accounts:balance_read(AID),
             A2 = tuple_to_list(A),
             {A3, _} = lists:split(11, A2),
-            {ok, list_to_tuple(A3)}
+            {ok, list_to_tuple([AID|A3])}
     end;
 
 doit({send, _, _, _, Coins, To}, From) ->

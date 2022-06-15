@@ -16,7 +16,8 @@ handle(Req, State) ->
     {ok, Req4, State}.
 
 sleeper() ->
-    timer:sleep(2000).
+    %timer:sleep(2000).
+    timer:sleep(0).
     
 
 doit({test}) -> {ok, "success"};
@@ -42,7 +43,17 @@ doit({repo, AID}) ->
     {ok, acount:votes(AID)};
 
 doit({sid}) ->
+    sleeper(),
     {ok, settings:server_id()};
+
+doit({x, 1, AID}) ->
+    sleeper(),
+    {ok, A} = accounts:balance_read(AID),
+    {ok, accounts:nonce(A)};
+
+doit({x, 2, Pub}) ->
+    sleeper(),
+    {ok, pubkeys:read(base64:encode(Pub))};
 
 doit(X) ->
     io:fwrite("http handler doit fail"),

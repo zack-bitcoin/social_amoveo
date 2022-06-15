@@ -14,7 +14,7 @@
 -define(SERVER, ?MODULE).
 
 -define(keys, 
-          [accounts, pubkeys, posts, 
+          [accounts, pubkeys, posts, nonces,
            dms, height_tracker, settings]).
 
 start_link() ->

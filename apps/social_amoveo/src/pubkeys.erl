@@ -26,14 +26,14 @@ handle_cast({new, Pubkey, ID}, X) ->
     ets:insert(?MODULE, [{Pubkey, ID}]),
     {noreply, X};
 handle_cast(_, X) -> {noreply, X}.
-handle_call({read, Pubkey}, _From, X) -> 
-    {reply, ets_tools:read(?MODULE, Pubkey), X};
+%handle_call({read, Pubkey}, _From, X) -> 
+%    {reply, ets_tools:read(?MODULE, Pubkey), X};
 handle_call(_, _From, X) -> {reply, X, X}.
 
 new(Pubkey, ID) ->
     gen_server:cast(?MODULE, {new, Pubkey, ID}).
 read(Pubkey) ->
-    gen_server:call(?MODULE, {read, Pubkey}).
+    ets_tools:read(?MODULE, Pubkey).
 
 test() ->
     ID1 = <<"1">>,
