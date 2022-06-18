@@ -17,6 +17,9 @@ start(_StartType, _StartArgs) ->
                   accounts:block_scan(),
                   accounts:block_cron() 
           end),
+    spawn(fun() ->
+                  popular_posts_cache:cron()
+          end),
     accounts:repossess_cron(),
     social_amoveo_sup:start_link().
 

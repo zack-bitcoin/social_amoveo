@@ -18,8 +18,8 @@ function keys_function1() {
     save_name.type = "text";
     save_name.value = "Amoveo private key";
     var load_text = document.createTextNode("get key from file");
-    document.body.appendChild(account_title);
-    document.body.appendChild(div);
+    //document.body.appendChild(account_title);
+    //document.body.appendChild(div);
     div.appendChild(load_text);
     var file_selector = document.createElement("input");
     file_selector.type = "file";
@@ -67,8 +67,8 @@ function keys_function1() {
     var balance_button = button_maker2("check balance ", update_balance);
     var bal_div = document.createElement("div");
 
-    div.appendChild(bal_div);
-    div.appendChild(balance_button);
+    //div.appendChild(bal_div);
+    //div.appendChild(balance_button);
 
 
     //append_children(div, [bal_div, balance_button]);
@@ -288,6 +288,7 @@ function keys_function1() {
                 update_balance_callback = x;
             }),
             compress: compress_pub,
-            decompress: decompress_pub };
+            decompress: decompress_pub,
+            div: div};
 }
 var keys = keys_function1();

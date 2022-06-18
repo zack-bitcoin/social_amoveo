@@ -15,7 +15,8 @@
 
 -define(keys, 
           [accounts, pubkeys, posts, nonces,
-           dms, height_tracker, settings]).
+           dms, height_tracker, settings,
+           popular_posts_cache]).
 
 start_link() ->
     supervisor:start_link({local, ?SERVER}, ?MODULE, []).

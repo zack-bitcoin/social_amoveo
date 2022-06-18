@@ -569,40 +569,25 @@ balance_read(AID, Height) ->
                   new_balance(CoinHours, TS, TS2, Coins),
               timestamp = TS2}}
     end.
+new_balance(CoinHours, TS1, TS2, Coins) 
+  when TS1 >= TS2 -> 
+    CoinHours;
 new_balance(CoinHours, TS1, TS2, Coins) ->
 %formula for updating coin-hours.
     %TODO.
     %for every block, give Coins, and take away CoinHours/1000.
-    % B2 = (B1 * 999/1000) + Coins
-    % B3 = ((B1 * 999/1000) + Coins) * 999/1000 + Coins
-    % B3 = (B1 * (999/1000)^2) + coins*999/1000 + coins
-    % B4 = (B1 * (999/1000)^3) + coin*(999/1000)^2 + coins*999/1000 + coins
-    % B4 = (B1 * (999/1000)^3) + coins*(f^2 + f + 1)
 
-    %pi from i = 0 to n of f^i (for f >0 and <1)
-    %g = 1-f
-    %pi from i = 0 to n of (1-g)^i (for g >0 and <1)
-    %(1) + (1-g) + (1-2g+g^2) + (1 - 3g + 3g^2 - g^3)
-    %4 - 6g + 4g^2 - g^3
-    % = (1 - (1-g)^4) / g
-    % = (1 - f^4) / (1-f)
+    %part being summed is a finite geometric series.
 
     N = TS2 - TS1,
     F = 999/1000,
     FN = math:pow(F, N),
-    CM = Coins - settings:minimum_account_balance(),
+    CM = %(Coins * (1 - F)) - 
+        Coins -
+        settings:minimum_account_balance(),
     CH2E = (CoinHours * FN) + 
         (CM * (1 - FN) / (1 - F)),
     math:floor(CH2E).
-
-
-
-%    P = CoinHours,%previous balance of coins hours.
-    %coins balance, 
-%    C = Coins - settings:minimum_account_balance(),
-%    T = max(TS2 - TS1, 0),%time that passed.
-%    H = 1000,%Half Life of 1000 blocks is about a week.
-%    P + (T*(C - P) div H).
     
     
 

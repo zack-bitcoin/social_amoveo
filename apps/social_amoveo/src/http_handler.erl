@@ -36,11 +36,11 @@ doit({top, 0, 2}) ->
 % top posts from an account
 doit({top, AID}) -> 
     sleeper(),
-    {ok, account:posts(AID)};
+    {ok, accounts:posts(AID)};
 
 doit({repo, AID}) ->
     sleeper(),
-    {ok, acount:votes(AID)};
+    {ok, accounts:votes(AID)};
 
 doit({sid}) ->
     sleeper(),
@@ -54,6 +54,14 @@ doit({x, 1, AID}) ->
 doit({x, 2, Pub}) ->
     sleeper(),
     {ok, pubkeys:read(base64:encode(Pub))};
+
+doit({x, 3, PID}) ->
+    sleeper(),
+    {ok, posts:read(PID)};
+
+doit({x, 4, AID}) ->
+    sleeper(),
+    {ok, accounts:balance_read(AID)};
 
 doit(X) ->
     io:fwrite("http handler doit fail"),

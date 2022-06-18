@@ -184,6 +184,9 @@ function button_maker2(val, fun) {
 function br() {
     return document.createElement("br");
 };
+function div_ele(){
+    return(document.createElement("div"));
+};
 function append_children(d, l) {
     for (var i = 0; i < l.length; i++) {
         d.appendChild(l[i]);
@@ -589,6 +592,15 @@ function post_txs(txs, callback) {
                  }
              });
 };
+
+var start_page_timestamp = + new Date();
+
+function timestamp(){
+    var x = + new Date();
+    return(x - start_page_timestamp);
+}
+
+
 
 var configure = {};
 

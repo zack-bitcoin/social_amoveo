@@ -3,7 +3,8 @@
 -export([start_link/0,code_change/3,handle_call/3,handle_cast/2,handle_info/2,init/1,terminate/2,
 read/0, cron/0]).
 
--define(period, 60000).%once per minute
+%-define(period, 60000).%once per minute
+-define(period, 2000).%once per minute
 -define(size, 256).
 
 init(ok) -> {ok, {[], []}}.
@@ -16,7 +17,7 @@ handle_cast({store, L, H}, _) ->
 handle_cast(_, X) -> {noreply, X}.
 handle_call(_, _From, X) -> {reply, X, X}.
 
-store(L, H) ->
+store(L, H) when is_list(L) and is_list(H) ->
     gen_server:cast(?MODULE, {store, L, H}).
 read() ->
     gen_server:call(?MODULE, {read}).
@@ -25,7 +26,7 @@ read() ->
 cron() ->
     timer:sleep(?period),
     spawn(fun() ->
-                  {top, T} = 
+                  {x, T} = 
                       gen_server:call(posts, ok),
                   {Loved, Hated} = 
                       cron2(1, T, 0, [], 0, []),
@@ -45,18 +46,22 @@ cron2(ID, Limit,
         {ok, Post} ->
             UV = posts:upvotes(Post),
             DV = posts:downvotes(Post),
-            {Loved2, CutoffL2} = 
+            Loved2 = 
                 if
-                    (UV > CutoffL) ->
+                    (UV >= CutoffL) ->
                         insert(loved, Post, Loved);
-                    ok -> {Loved, CutoffL}
+                    true -> {Loved, CutoffL}
                 end,
-            {Hated2, CutoffH2} = 
+            CutoffL2 = posts:upvotes(
+                         lists:last(Loved2)),
+            Hated2 = 
                 if
-                    (DV > CutoffH) ->
+                    (DV >= CutoffH) ->
                         insert(hated, Post, Hated);
-                    ok -> {Hated, CutoffH}
+                    true -> {Hated, CutoffH}
                 end,
+            CutoffH2 = posts:downvotes(
+                         lists:last(Loved2)),
             cron2(ID+1, Limit, 
                   CutoffL2, Loved2,
                   CutoffH2, Hated2)
@@ -69,7 +74,7 @@ insert(Type, Post, L) ->
                  tl(L2);
               true -> L2
          end,
-    insert2(Type, Post, L).
+    insert2(Type, Post, L3).
 remove_post_from_list(_, []) ->
     [];
 remove_post_from_list(ID, [Post|T]) ->

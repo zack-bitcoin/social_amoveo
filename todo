@@ -1,14 +1,6 @@
 
 todo web pages.
 
-* cold storage
-  - load a pubkey for watch-only
-  - generate an unsigned api request for spending coins or coin-hours.
-  - publish a signed api request.
-
-* login
-  - load your private key from file, or create a new private key.
-
 * account
   - if it is your account, make it editable.
   - username
@@ -16,16 +8,13 @@ todo web pages.
   - pubkey
   - recent posts
   - balances
-  - a way to spend
-
-* most popular posts
 
 * most popular posts according to who you follow.
-
-* make a post.
-
-* make a comment.
 
 * send a dm
 
 * browse dms
+
+* delegating coins or coin hours.
+
+* voting on a post.
