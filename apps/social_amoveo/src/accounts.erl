@@ -27,6 +27,7 @@
          remove_small_votes/2,
          update_veo_balance/2,
          new_account/1, charge/2,
+         post_voted/4,
 
          pubkey/1,nonce/1,
 
@@ -58,7 +59,7 @@
          delegated_to = [],%{account id, balance} 
          delegated_by = [], %{account id, balance} they delegate to us.
          posts = [], %{post_id, timestamp, upvotes, downvotes} posts that we authored, in chronological order, recent posts first.
-         votes = [] %{post_id, amount, timestamp}
+         votes = [] %{post_id, amount, direction, timestamp}
         }).
 -define(repossess_period, 10000).
 
@@ -369,6 +370,17 @@ handle_cast({post, AID, PID}, X) ->
             ets_write(AID, A2)
     end,
     {noreply, X};
+handle_cast({post_voted, AID, PID, Up, Down}, X)-> 
+    case ets_read(AID) of
+        error -> ok;
+        {ok, A} ->
+            P1 = A#acc.posts,
+            P2 = post_vote_internal(
+                   P1, PID, Up, Down),
+            A2 = A#acc{posts = P2},
+            ets_write(AID, A2)
+    end,
+    {noreply, X};
 handle_cast({remove_post, AID, PID}, X) -> 
     case ets_read(AID) of
         error -> ok;
@@ -629,6 +641,9 @@ pay_interest(AID) ->
 make_post(AID, PID) ->
     gen_server:cast(
       ?MODULE, {post, AID, PID}).
+post_voted(AID, PID, Up, Down) ->
+    gen_server:cast(
+      ?MODULE, {post_voted, AID, PID, Up, Down}).
 remove_post(AID, PID) ->
     gen_server:cast(
       ?MODULE, {remove_post, AID, PID}).
@@ -780,10 +795,14 @@ scale_internal(Votes, N) ->
     si2(Votes, N, [], 0).
 si2([], _, R, C) ->
     {lists:reverse(R), C};
-si2([{PID, Amount, TS, D}|Votes], N, R, C) ->
+si2([{PID, Amount, D, TS}|Votes], N, R, C) ->
     Rest = Amount * N div 1000000,
     Recovered = Amount - Rest,
-    si2(Votes, N, [{PID, Rest, TS, D}|R],
+    case D of
+        up -> posts:upvote(PID, -Recovered);
+        down -> posts:downvote(PID, -Recovered)
+    end,
+    si2(Votes, N, [{PID, Rest, D, TS}|R],
         C+Recovered).
 
 remove_small_internal(Votes, Min) ->
@@ -1121,6 +1140,16 @@ load_txs([{[{<<"type">>,<<"account">>},
 load_txs([H|T]) -> 
     %io:fwrite(H),
     load_txs(T).
+
+post_vote_internal([], _, _, _) ->
+    io:fwrite("post vote internal failure\n"),
+    [];
+post_vote_internal(
+  [{ID, TS, Up1, Down1}|T], ID, Up, Down) ->
+    [{ID, TS, Up1 + Up, Down1 + Down}|T];
+post_vote_internal([H|T], ID, Up, Down) ->
+    [H|post_vote_internal(T, ID, Up, Down)].
+
 
 %height_check() ->
 %    case utils:talk({height}) of

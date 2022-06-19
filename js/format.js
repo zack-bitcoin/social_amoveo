@@ -599,6 +599,17 @@ function timestamp(){
     var x = + new Date();
     return(x - start_page_timestamp);
 }
+function header_button(text, f){
+    var x = document.createElement("span");
+    x.innerHTML = text;
+    x.style.color = "blue";
+    x.onclick = function(){
+        f();
+    };
+    return(x);
+}
+
+
 
 
 

@@ -8,7 +8,6 @@ async function nonce_builder(pub){
     console.log("id is ");
     console.log(id);
     var nonce = await rpc.apost(["x", 1, id]);
-    nonce = nonce+1;
     function check(){
         nonce = nonce + 1;
         return(nonce);

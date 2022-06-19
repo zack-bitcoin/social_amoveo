@@ -4,7 +4,7 @@
 read/0, cron/0]).
 
 %-define(period, 60000).%once per minute
--define(period, 2000).%once per minute
+-define(period, 2000).%once per 2 seconds.
 -define(size, 256).
 
 init(ok) -> {ok, {[], []}}.
@@ -49,8 +49,8 @@ cron2(ID, Limit,
             Loved2 = 
                 if
                     (UV >= CutoffL) ->
-                        insert(loved, Post, Loved);
-                    true -> {Loved, CutoffL}
+                       insert(loved, Post, Loved);
+                    true -> Loved
                 end,
             CutoffL2 = posts:upvotes(
                          lists:last(Loved2)),
@@ -58,7 +58,7 @@ cron2(ID, Limit,
                 if
                     (DV >= CutoffH) ->
                         insert(hated, Post, Hated);
-                    true -> {Hated, CutoffH}
+                    true -> Hated
                 end,
             CutoffH2 = posts:downvotes(
                          lists:last(Loved2)),

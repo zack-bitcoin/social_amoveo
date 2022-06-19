@@ -9,7 +9,7 @@ async function account_loader(
     }
     var n = noncer.check();
     var tx = ["balance", keys.pub(), n, sid, id];
-    console.log(tx);
+    //console.log(tx);
     var stx = keys.sign(tx);
     var r = await rpc.signed(stx);
     return(decode_acc(id, r));
@@ -20,7 +20,8 @@ function decode_acc(id, r){
         username: atob(r[2]),
         description: atob(r[3]),
         pubkey: atob(r[1]),
-        coins: r[5],
+        veo: r[5],
+        coins: r[5] - r[6] - r[9] - r[10],
         coin_hours: r[7],
         timestamp: timestamp()
     };
@@ -40,7 +41,7 @@ async function post_loader(
     //lookup a post by id.
     var tx = ["x", keys.pub(), noncer.check(),
               sid, 14, id];
-    console.log(tx);
+    //console.log(tx);
     var stx = keys.sign(tx);
     var post = await rpc.signed(stx);
     //{post, pid, text, author, timestamp, upvotes, downvotes, comments, parent}

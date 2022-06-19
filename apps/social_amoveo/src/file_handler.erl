@@ -35,6 +35,7 @@ handle(Req, _) ->
 	       <<"/nonce.js">> -> true;
 	       <<"/account_div_maker.js">> -> true;
 	       <<"/account_loader.js">> -> true;
+	       <<"/following.js">> -> true;
                
                X -> 
                    io:fwrite("ext file handler block access to: "),

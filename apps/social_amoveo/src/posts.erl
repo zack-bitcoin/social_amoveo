@@ -4,7 +4,7 @@
          new/2, comment/3, upvote/2, downvote/2, 
          delete/1, read/1, test/0,
 
-         upvotes/1, downvotes/1, id/1,
+         upvotes/1, downvotes/1, id/1, author/1,
 
          cost/1]).
 -define(LOC, "posts.db").
@@ -26,6 +26,8 @@ downvotes(P) ->
     P#post.downvotes.
 id(P) ->
     P#post.id.
+author(P) ->
+    P#post.author.
 
 -record(x, {top}).
 

@@ -18,6 +18,11 @@ handle(Req, State) ->
     {ok, AID} = pubkeys:read(base64:encode(Pub)),
     {ok, Acc} =  accounts:balance_read(AID),
     PrevNonce =  accounts:nonce(Acc),
+    io:fwrite("nonce prev:"),
+    io:fwrite(integer_to_list(PrevNonce)),
+    io:fwrite(" "),
+    io:fwrite(integer_to_list(Nonce)),
+    io:fwrite("\n"),
     true = Nonce > PrevNonce,
     D = packer:pack(doit(Tx, AID)),
     accounts:update_nonce(AID, Nonce),
@@ -35,6 +40,7 @@ doit({balance, _, _, _, AID}, From)
     A2 = tuple_to_list(A),
     {A3, _} = lists:split(11, A2),
     R = list_to_tuple(A3),
+    %io:fwrite(R),
     {ok, R};
 doit({balance, _, _, _, Pub}, From) ->
     case pubkeys:read(Pub) of
@@ -125,15 +131,20 @@ doit({x, _, _, _, 6, PID, Amount, Direction}, From) ->
 %* upvote/downvote (vote) a post. post id, amount to vote with. (potentially changes the list of post ids ordered by popularity in the author's account).
     true = is_integer(Amount),
     ok = accounts:charge(From, settings:api_cost()),
-    %{ok, Post} = posts:read(PID),
+    {ok, Post} = posts:read(PID),
+    Author = posts:author(Post),
     case Direction of
         1 -> 
             accounts:make_vote(
               From, PID, Amount, up),
+            accounts:post_voted(
+              Author, PID, Amount, 0),
             posts:upvote(PID, Amount);
         -1 -> 
             accounts:make_vote(
               From, PID, Amount, down),
+            accounts:post_voted(
+              Author, PID, 0, Amount),
             posts:downvote(PID, Amount)
     end,
     {ok, 0};
@@ -153,7 +164,7 @@ doit({x, _, _, _, 8, N}, From) ->
 doit({x, _, _, _, 9, Min}, From) ->
     %remove the votes that have less than Min value locked in them.
     ok = accounts:charge(From, settings:api_cost()),
-    accounts:scale_votes(From, Min),
+    accounts:remove_small_votes(From, Min),
     {ok, 0};
 doit({x, _, _, _, 10, To, Msg, CoinHours}, From) ->
 %* send a DM, with an optional coin-hour lockup. (costs more for longer messages, and if the expiration is further in the future.)
@@ -218,7 +229,7 @@ doit({x, _, _, _, 15, AID}, From) ->
 doit({x, _, _, _, 16, AIDs}, From) ->
 %posts from all these accounts. (costs by how many posts are loaded)
     ok = accounts:charge(
-           From, settings:api_cost()*length(AIDs)),
+           From, settings:api_cost()*(1 + length(AIDs))),
     Posts = lists:map(fun(X) -> accounts:posts(X) end,
                       AIDs),
     {ok, Posts};
@@ -328,15 +339,15 @@ doit({x, _, _, _, 24, AID, MID}, From) ->
                 _ -> {error, <<"no message with that id">>}
             end
     end;
-doit({x, _, _, _, 25, AID, PID}, From) ->
+doit({x, _, _, _, 25, PID}, From) ->
     %delete a post
-    case accounts:balance_read(AID) of
+    case accounts:balance_read(From) of
         error -> {error, <<"account does not exist">>};
         {ok, A} ->
             case posts:read(PID) of
                 error -> {error, <<"that post does not exist">>};
                 {ok, P}->
-                    accounts:remove_post(AID, PID),
+                    accounts:remove_post(From, PID),
                     posts:delete(PID),
                     {ok, 0}
             end
