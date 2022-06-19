@@ -3,9 +3,6 @@ social_amoveo
 
 Uses coin-hours from Amoveo to meter access to a forum.
 
-It is a work in progress.
-Notes on what more needs to be built is in the [todo](todo) file.
-
 In order to run this program, you need to be running an amoveo full node first. https://github.com/zack-bitcoin/amoveo
 
 You need to edit the /config/sys.config.tmpl file from the Amoveo full node.
@@ -33,3 +30,15 @@ It is important to turn it off this way, because then you don't need to re-scan 
 
 to delete the database and start a fresh server with zero accounts and zero posts.
 ``` sh clean.sh ```
+
+
+
+commands you can use after attaching.
+===========
+
+to give/take coins to an account:
+```accounts:update_veo_balance(AccountID, NewBalance).```
+
+to give/take coin-hours to an account:
+```account:change_coin_hours(AccountID, Delta).```
+

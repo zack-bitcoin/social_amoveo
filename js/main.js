@@ -251,7 +251,6 @@
         var top_pids =
             await rpc.apost(["top"]);
         top_pids = top_pids.slice(1);
-        console.log(JSON.stringify(top_pids));
         posts_div_maker(
             top_pids.reverse(),
             my_nonce, sid, top_posts_div,
@@ -305,6 +304,7 @@
 
             d.appendChild(author_link);
             s = s
+                .concat("author balance: ")
                 .concat(s2c(acc.coins))
                 .concat("<br/>");
         }
@@ -326,9 +326,9 @@
         post_p.innerHTML = s;
         d.appendChild(post_p);
 
-        if(noncer.id === post.author_id){
+        if(noncer &&
+           (noncer.id === post.author_id)){
             //todo. this is your post, so give a button for deleting it.
-            console.log("make delete post button");
             var confirm_div =
                 document.createElement("span");
             var delete_post_button = header_button(

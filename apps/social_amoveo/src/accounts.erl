@@ -59,7 +59,8 @@
          delegated_to = [],%{account id, balance} 
          delegated_by = [], %{account id, balance} they delegate to us.
          posts = [], %{post_id, timestamp, upvotes, downvotes} posts that we authored, in chronological order, recent posts first.
-         votes = [] %{post_id, amount, direction, timestamp}
+         votes = [], %{post_id, amount, direction, timestamp}
+          verified = false
         }).
 -define(repossess_period, 10000).
 
