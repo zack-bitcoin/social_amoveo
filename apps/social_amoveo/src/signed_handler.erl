@@ -124,8 +124,9 @@ doit({x, _, _, _, 5, Text, Parent}, From) ->
            settings:api_cost()
            + settings:comment_notification_fee()),
     case posts:comment(Text, From, Parent) of
-        <<"invalid parent">> -> {error, <<"you tried to commented on a post that does not exist in the database.">>};
-        PID ->
+        {error, <<"invalid parent">>} -> 
+            {error, <<"you tried to commented on a post that does not exist in the database.">>};
+        {ok, PID} ->
             accounts:make_post(From, PID),
             {ok, 0}
     end;
@@ -402,7 +403,8 @@ delayed_notifications(
                     delayed_notifications(
                       From, N0, TS0);
                 N -> 
-                    {ok, N - N0}
+                    %{ok, N - N0}
+                    {ok, accounts:unseen_notifications(From)}
                         %accounts:notifications(From)
             end
     end.

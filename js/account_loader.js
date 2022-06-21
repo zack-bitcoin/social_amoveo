@@ -9,7 +9,7 @@ async function account_loader(
     }
     var n = noncer.check();
     var tx = ["balance", keys.pub(), n, sid, id];
-    console.log(JSON.stringify(tx));
+    //console.log(JSON.stringify(tx));
     var stx = keys.sign(tx);
     var r = await rpc.signed(stx);
     return(decode_acc(id, r));
@@ -41,7 +41,7 @@ async function post_loader(
     //lookup a post by id.
     var tx = ["x", keys.pub(), noncer.check(),
               sid, 14, id];
-    //console.log(tx);
+    console.log(tx);
     var stx = keys.sign(tx);
     var post = await rpc.signed(stx);
     if(post === "error"){
@@ -52,7 +52,7 @@ async function post_loader(
     return(decode_post(post));
 };
 function decode_post(post){
-    console.log(JSON.stringify(post));
+    //console.log(JSON.stringify(post));
     var data =
         {pid: post[1],
          text: atob(post[2]),

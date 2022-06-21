@@ -553,6 +553,22 @@ handle_cast({zero_unseen_notifications, AID}, X) ->
         error -> ok
     end,
     {noreply, X};
+handle_cast({remove_all_posts, AID}, X) -> 
+    case ets_read(AID) of
+        error -> ok;
+        {ok, A} -> 
+            A2 = A#acc{posts = []},
+            ets_write(AID, A2)
+    end,
+    {noreply, X};
+handle_cast({remove_all_notifications, AID}, X) -> 
+    case ets_read(AID) of
+        error -> ok;
+        {ok, A} -> 
+            A2 = A#acc{notifications = []},
+            ets_write(AID, A2)
+    end,
+    {noreply, X};
 handle_cast(_, X) -> {noreply, X}.
 handle_call({new_account, Pub, Height}, _, X) -> 
     case ets_read(X) of

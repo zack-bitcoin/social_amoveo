@@ -68,7 +68,7 @@ handle_call({comment, Text, Author, ParentID},
             _From, X = #x{top = Top}) -> 
     {T1, T2, _} = erlang:timestamp(),
     case ets:lookup(?MODULE, ParentID) of
-        [] -> {reply, <<"invalid parent">>, X};
+        [] -> {reply, {error, <<"invalid parent">>}, X};
         [{ParentID, Parent}|_] ->
             Parent2 = 
                 Parent#post{
@@ -110,12 +110,15 @@ new(Text, Author) when is_binary(Text) ->
     gen_server:call(?MODULE, {post, Text, Author}).
 comment(Text, Author, Parent) 
   when is_binary(Text) ->
-    {Top, ParentAuthor} = 
-        gen_server:call(
+    X = gen_server:call(
           ?MODULE, {comment, Text, 
                     Author, Parent}),
-    accounts:notify(ParentAuthor, Top).
-            
+    case X of
+        {error, E} -> {error, E};
+        {Top, ParentAuthor} ->
+            accounts:notify(ParentAuthor, Top),
+            {ok, Top}
+    end.
 
 upvote(PID, Amount) ->
     gen_server:call(

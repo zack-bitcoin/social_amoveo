@@ -268,6 +268,7 @@
     };
 
     async function notifications_cron(pub){
+        console.log("notifications cron\n");
         if(!(keys.pub() === pub)){
             return(0);
         };
@@ -276,6 +277,7 @@
                   sid, 30];
         var stx = keys.sign(tx);
         var r = await rpc.signed(stx);
+        console.log(r);
         if(r > 0){
             notifications_button.style.color =
                 "red";
@@ -346,6 +348,12 @@
             return(0);
         };
         var id = pids[0][1];
+        console.log(JSON.stringify(pids));
+        if(id === "null"){
+            return(posts_div_maker(
+                pids.slice(1), noncer, sid, d,
+                show_author, n-1));
+        };
         var post;
         if(pids[0][0] === "post"){
             post = decode_post(pids[0]);
@@ -353,6 +361,7 @@
             post = await post_loader(
                 noncer, sid, id);
         }
+        console.log(post);
         if(post[0] === "error"){
             return(posts_div_maker(
                 pids.slice(1), noncer, sid, d,
