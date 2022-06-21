@@ -39,17 +39,7 @@ cost(P) ->
 init(ok) -> 
     process_flag(trap_exit, true),
     Top = ets_tools:load_ets(?MODULE),
-%    {Loved, Hated} = 
-%        case db:read(?LOC) of
-%            {error, R} ->
-%                io:fwrite(R),
-%                1=2;
-%            <<>> -> [];
-%           X -> X
-%        end,
     {ok, #x{top = Top}}.%, %the id that will be assigned to the next post created.
-%            loved = Loved,%the most popular posts
-%            hated = Hated}}.%the least popular posts
 start_link() -> gen_server:start_link({local, ?MODULE}, ?MODULE, ok, []).
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 terminate(_, X) -> 
@@ -78,13 +68,12 @@ handle_call({comment, Text, Author, ParentID},
             _From, X = #x{top = Top}) -> 
     {T1, T2, _} = erlang:timestamp(),
     case ets:lookup(?MODULE, ParentID) of
-        [] -> {reply, <<"invalid parent">>, Top};
+        [] -> {reply, <<"invalid parent">>, X};
         [{ParentID, Parent}|_] ->
             Parent2 = 
                 Parent#post{
                   comments = 
                       [Top|Parent#post.comments]},
-                       
             P = #post{
               id = Top,
               text = Text,
@@ -95,7 +84,7 @@ handle_call({comment, Text, Author, ParentID},
             ets:insert(?MODULE, [{Top, P}]),
             ets:insert(
               ?MODULE, [{ParentID, Parent2}]),
-            {reply, Top, X#x{top = Top+1}}
+            {reply, {Top, Parent#post.author}, X#x{top = Top+1}}
     end;
 handle_call({vote, Type, PID, Amount}, _, X) -> 
     case ets:lookup(?MODULE, PID) of
@@ -119,9 +108,14 @@ handle_call(_, _From, X) -> {reply, X, X}.
 
 new(Text, Author) when is_binary(Text) ->
     gen_server:call(?MODULE, {post, Text, Author}).
-comment(Text, Author, Parent) when is_binary(Text) ->
-    gen_server:call(
-      ?MODULE, {comment, Text, Author, Parent}).
+comment(Text, Author, Parent) 
+  when is_binary(Text) ->
+    {Top, ParentAuthor} = 
+        gen_server:call(
+          ?MODULE, {comment, Text, 
+                    Author, Parent}),
+    accounts:notify(ParentAuthor, Top).
+            
 
 upvote(PID, Amount) ->
     gen_server:call(

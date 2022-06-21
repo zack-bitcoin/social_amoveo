@@ -21,9 +21,9 @@ if (match !== null){
     var port = match[3];
     console.log(port);
     if (document.URL[0] == 'f') {
-        console.log("running stand-alone light node");
+        //console.log("running stand-alone light node");
     } else {
-        console.log("running light node served from a full node");
+        //console.log("running light node served from a full node");
         server_port.value = port;
 //    server_port.value = document.URL.split(":")[2].substring(0, 4);
     };

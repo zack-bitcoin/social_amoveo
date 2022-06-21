@@ -23,49 +23,54 @@ async function account_div_maker(
         var pub = document.createElement("p");
         pub.innerHTML = data.pubkey;
         d.appendChild(pub);
-        var coins_balance = document.createElement("p");
-        coins_balance.innerHTML = "veo: ".concat(s2c(data.coins));
+        var coins_balance =
+            document.createElement("p");
+        coins_balance.innerHTML =
+            "veo: ".concat(s2c(data.coins));
         d.appendChild(coins_balance);
         var coin_hours = document.createElement("p");
         coin_hours.innerHTML = "coin hours: ".concat(s2c(data.coin_hours));
         d.appendChild(coin_hours);
-
-        if(following.check(data.id)){
-
-            var unfollow_button = header_button(
-                "unfollow ".concat(data.username),
-                async function(){
-                    var tx = ["x", keys.pub(),
-                              noncer.check(),
-                              sid, 19, data.id];
-                    var stx = keys.sign(tx);
-                    await rpc.signed(stx);
-                    unfollow_button.innerHTML =
-                        "successfully unfollowed "
-                        .concat(data.username);
-                    unfollow_button.onclick =
-                        function(){};
-                following.remove(data.id);
-                });
-            d.appendChild(unfollow_button);
-        } else {
-        
-        var follow_button = header_button(
-            "follow ".concat(data.username),
-            async function(){
-                var tx = ["x", keys.pub(),
-                          noncer.check(),
-                          sid, 3, data.id];
-                var stx = keys.sign(tx);
-                await rpc.signed(stx);
-                follow_button.innerHTML =
-                    "successfully followed "
-                    .concat(data.username);
-                follow_button.onclick =
-                    function(){};
-                following.add(data.id);
-            });
-            d.appendChild(follow_button);
+        if(noncer && (!(id === noncer.id))){
+            if(following.check(data.id)){
+                var unfollow_button = header_button(
+                    "unfollow "
+                        .concat(data.username),
+                    async function(){
+                        var tx =
+                            ["x", keys.pub(),
+                             noncer.check(),
+                             sid,19, data.id];
+                        var stx = keys.sign(tx);
+                        await rpc.signed(stx);
+                        unfollow_button.innerHTML =
+                            "successfully unfollowed "
+                            .concat(data.username);
+                        unfollow_button.onclick =
+                            function(){};
+                        following.remove(data.id);
+                    });
+                d.appendChild(unfollow_button);
+            } else {
+                
+                var follow_button = header_button(
+                    "follow "
+                        .concat(data.username),
+                    async function(){
+                        var tx = ["x", keys.pub(),
+                                  noncer.check(),
+                                  sid, 3, data.id];
+                        var stx = keys.sign(tx);
+                        await rpc.signed(stx);
+                        follow_button.innerHTML =
+                            "successfully followed "
+                            .concat(data.username);
+                        follow_button.onclick =
+                            function(){};
+                        following.add(data.id);
+                    });
+                d.appendChild(follow_button);
+            };
         }
         
         return(d);

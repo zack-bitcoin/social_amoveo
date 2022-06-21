@@ -18,11 +18,6 @@ handle(Req, State) ->
     {ok, AID} = pubkeys:read(base64:encode(Pub)),
     {ok, Acc} =  accounts:balance_read(AID),
     PrevNonce =  accounts:nonce(Acc),
-    io:fwrite("nonce prev:"),
-    io:fwrite(integer_to_list(PrevNonce)),
-    io:fwrite(" "),
-    io:fwrite(integer_to_list(Nonce)),
-    io:fwrite("\n"),
     true = Nonce > PrevNonce,
     D = packer:pack(doit(Tx, AID)),
     accounts:update_nonce(AID, Nonce),
@@ -120,7 +115,14 @@ doit({x, _, _, _, 5, Text, Parent}, From) ->
 %* make a comment
     true = is_binary(Text),
     true = is_integer(Parent),
-    ok = accounts:charge(From, settings:api_cost()),
+    %notifications only get stored for 1000 blocks.
+    %you are paying for 4 bytes
+    %so it is like locking up 4*settings:coins_per_byte() for 1000 blocks.
+    %which is 4000*settings:coins_per_byte() in coin-hours.
+    ok = accounts:charge(
+           From, 
+           settings:api_cost()
+           + settings:comment_notification_fee()),
     case posts:comment(Text, From, Parent) of
         <<"invalid parent">> -> {error, <<"you tried to commented on a post that does not exist in the database.">>};
         PID ->
@@ -221,7 +223,7 @@ doit({x, _, _, _, 13, AID}, From) ->
 doit({x, _, _, _, 14, PID}, From) ->
 %* lookup post by id
     ok = accounts:charge(From, settings:api_cost()),
-    posts:read(PID);
+    {ok, posts:read(PID)};
 doit({x, _, _, _, 15, AID}, From) ->
 %* chronological posts by accounts 
     ok = accounts:charge(From, settings:api_cost()),
@@ -269,7 +271,7 @@ doit({x, _, _, _, 21, AID}, From) ->
         {ok, A} ->
             {ok, accounts:delegated_to(A)}
     end;
-doit({x, _, _, _, 22, AID, MID}, From) ->
+doit({x, _, _, _, 22, MID}, AID) ->
     %delete a dm. free.
     case accounts:balance_read(AID) of
         error -> {error, <<"account does not exist">>};
@@ -304,7 +306,7 @@ doit({x, _, _, _, 22, AID, MID}, From) ->
                 _ -> error
             end
     end;
-doit({x, _, _, _, 23, AID, MID}, From) ->
+doit({x, _, _, _, 23, MID}, AID) ->
     %unlock deposit from DM
     case accounts:balance_read(AID) of
         error -> {error, <<"account does not exist">>};
@@ -326,7 +328,7 @@ doit({x, _, _, _, 23, AID, MID}, From) ->
                 _ -> {error, <<"no message with that id">>}
             end
     end;
-doit({x, _, _, _, 24, AID, MID}, From) ->
+doit({x, _, _, _, 24, MID}, AID) ->
     %burn deposit from DM
     case accounts:balance_read(AID) of
         error -> {error, <<"account does not exist">>};
@@ -353,13 +355,13 @@ doit({x, _, _, _, 25, PID}, From) ->
             end
     end;
 
-doit({x, _, _, _, 26, AID, Them}, From) ->
+doit({x, _, _, _, 26, Them}, From) ->
     %undelegate coins from someone.
-    accounts:undelegate(AID, Them),
+    accounts:undelegate(From, Them),
     {ok, 0};
-doit({x, _, _, _, 27, AID}, From) ->
+doit({x, _, _, _, 27}, From) ->
     %list of ids of dms related to you.
-    case accounts:balance_read(AID) of
+    case accounts:balance_read(From) of
         error -> {error, <<"account does not exist">>};
         {ok, A} ->
             {accounts:sent_unread_dms(A),
@@ -367,10 +369,45 @@ doit({x, _, _, _, 27, AID}, From) ->
              accounts:received_unread_dms(A),
              accounts:received_read_dms(A)}
     end;
+doit({x, _, _, _, 28}, From) ->
+    %notifications
+    {ok, accounts:notifications(From)};
+doit({x, _, _, _, 29}, From) ->
+    %many unseen notifications
+    {ok, accounts:unseen_notifications(From)};
+doit({x, _, _, _, 30}, From) ->
+    %notifications, delayed response
+    %N2 = accounts:maybe_remove_notification(From),
+
+    N0 = accounts:notifications_counter(From),
+    delayed_notifications(
+      From, N0, erlang:timestamp());
 doit(X, _) ->
     io:fwrite("signed handler doit fail"),
     io:fwrite(X),
     <<"error- unsupported http request.">>.
+
+delayed_notifications(
+  From, N0, TS0) ->
+    D = timer:now_diff(
+          erlang:timestamp(), TS0) 
+        div 1000000,%in seconds
+    if
+        (D > 60) -> {ok, 0};
+        true ->
+            case accounts:notifications_counter(From) of
+                {error, E} -> {error, E};
+                N0 ->
+                    timer:sleep(1000),
+                    delayed_notifications(
+                      From, N0, TS0);
+                N -> 
+                    {ok, N - N0}
+                        %accounts:notifications(From)
+            end
+    end.
+
+            
 
 is_in(_, []) -> false;
 is_in(A, [A|_]) -> true;

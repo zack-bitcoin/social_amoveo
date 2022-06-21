@@ -27,7 +27,14 @@
          remove_small_votes/2,
          update_veo_balance/2,
          new_account/1, charge/2,
-         post_voted/4,
+         post_voted/4, notify/2,
+         notifications/1, 
+         notifications_counter/1, 
+         unseen_notifications/1, 
+         %zero_unseen_notifications/1,
+         %maybe_remove_notification/1,
+
+         notification_limit/0,
 
          pubkey/1,nonce/1,
 
@@ -38,9 +45,13 @@
          block_cron/0, block_scan/0,
          repossess_cron/0]).
 
+-define(notification_limit, 32).
+
+notification_limit() ->
+    ?notification_limit.
+
 -record(acc, 
-        {%id, 
-          pubkey, 
+        {pubkey, 
          name = <<"">>, description = <<"">>, 
          timestamp, %block when coin-hours was last calculated.
          veo = 0, %how many veo your account owns in the Amoveo blockchain.
@@ -51,6 +62,7 @@
          coins_in_votes = 0, 
          coins_in_posts = 0,
          coins_in_dms = 0,
+         verified = false,
          following = [], %account ids
          sent_unread_dms = [], %mid
          sent_read_dms = [],
@@ -60,9 +72,11 @@
          delegated_by = [], %{account id, balance} they delegate to us.
          posts = [], %{post_id, timestamp, upvotes, downvotes} posts that we authored, in chronological order, recent posts first.
          votes = [], %{post_id, amount, direction, timestamp}
-          verified = false
+         notifications = [],
+         unseen_notifications = 0,
+         notifications_counter = 0
         }).
--define(repossess_period, 10000).
+-define(repossess_period, 60000).
 
 pubkey(X) ->
     X#acc.pubkey.
@@ -505,6 +519,40 @@ handle_cast({update_veo_balance, AID, NewBalance},
 handle_cast({repossess, BrokeAccounts}, X) -> 
     repossess_internal(BrokeAccounts),
     {noreply, X};
+handle_cast({notify, AID, PID}, X) -> 
+    case ets_read(AID) of
+        error -> ok;
+        {ok, A} ->
+            N1 = A#acc.notifications,
+            N2 = [{0, PID}|N1],
+            LN2 = length(N2),
+            B = (LN2 > ?notification_limit),
+            N3 = if
+                     B -> 
+                         {A, _} = 
+                             lists:split(
+                               ?notification_limit,
+                               N2),
+                         A;
+                     true -> N2
+                 end,
+            A2 = A#acc{notifications = N3,
+                       unseen_notifications =
+                           A#acc.unseen_notifications + 1,
+                      notifications_counter =
+                      A#acc.notifications_counter 
+                       + 1},
+            ets_write(AID, A2)
+    end,
+    {noreply, X};
+handle_cast({zero_unseen_notifications, AID}, X) ->
+    case ets_read(AID) of
+        {ok, A} -> 
+            A2 = A#acc{unseen_notifications = 0},
+            ets_write(AID, A2);
+        error -> ok
+    end,
+    {noreply, X};
 handle_cast(_, X) -> {noreply, X}.
 handle_call({new_account, Pub, Height}, _, X) -> 
     case ets_read(X) of
@@ -562,6 +610,23 @@ handle_call({delegate_new, AID, Coins,
                     {reply, Top, Top+1}
             end
     end;
+%handle_call({maybe_remove, AID}, _From, X) -> 
+%    case ets_read(AID) of
+%        error -> 
+%            {reply, {error, <<"no account">>}, X};
+%        {ok, A} ->
+%            N0 = A#acc.notifications,
+%            L = length(N0),
+%            if
+%                (L == 32) ->
+%                    {N2, _} = lists:slice(31, N0),
+%                    A2 = A#acc{notifications = N2},
+%                    ets_write(AID, A2),
+%                    {reply, 31, X};
+%                true ->
+%                    {reply, L, X}
+%            end
+%    end;
 handle_call(_, _From, X) -> {reply, X, X}.
 
 balance_read(AID) ->
@@ -572,7 +637,7 @@ balance_read(AID, Height) ->
     case ets_read(AID) of
         error -> error;
         {ok, empty} -> {ok, empty};
-        {ok, A} ->
+        {ok, A = #acc{}} ->
             CoinHours = A#acc.coin_hours,
             TS = A#acc.timestamp,
             Coins = balance(A),
@@ -587,11 +652,8 @@ new_balance(CoinHours, TS1, TS2, Coins)
     CoinHours;
 new_balance(CoinHours, TS1, TS2, Coins) ->
 %formula for updating coin-hours.
-    %TODO.
     %for every block, give Coins, and take away CoinHours/1000.
-
     %part being summed is a finite geometric series.
-
     N = TS2 - TS1,
     F = 999/1000,
     FN = math:pow(F, N),
@@ -714,11 +776,22 @@ update_veo_balance(AID, NewBalance) when
     gen_server:cast(?MODULE, {update_veo_balance,
                               AID,
                               NewBalance}).
+notify(AID, PID) when
+      is_integer(AID) and 
+      is_integer(PID) ->
+    gen_server:cast(?MODULE, {notify, AID, PID}).
 new_account(Pub) ->
     Height = height_tracker:check(),
     gen_server:call(?MODULE, 
                     {new_account, Pub, Height}).
-
+%maybe_remove_notification(AID) ->
+%    gen_server:call(?MODULE, {maybe_remove, AID}).
+unseen_notifications(AID) ->
+    case ets_read(AID) of
+        error -> 
+            {error, <<"account doesn't exist">>};
+        {ok, A} -> A#acc.unseen_notifications
+    end.
     
     
     
@@ -762,6 +835,26 @@ votes(AID) ->
             {error, <<"account doesn't exist">>};
         {ok, A} -> A#acc.votes
     end.
+notifications(AID) ->
+    case ets_read(AID) of
+        error -> 
+            {error, 
+             <<"account does not exist">>};
+        {ok, A} -> 
+            gen_server:cast(?MODULE, {zero_unseen_notifications, AID}),
+            A#acc.notifications
+    end.
+notifications_counter(AID) ->
+    case ets_read(AID) of
+        error -> 
+            {error, 
+             <<"account does not exist">>};
+        {ok, A} -> 
+            A#acc.notifications_counter
+    end.
+    
+
+    
 
 remove_post_from_list(PID, L) ->
     rpfl2(PID, L, []).

@@ -99,7 +99,38 @@
             });
     
     div.appendChild(following_posts);
-    
+    div.appendChild(span_dash());
+
+    var notifications_button =
+        header_button(
+            "notifications",
+            async function(){
+                clear_page();
+                var notifications_div =
+                    document.createElement("div");
+                var tx = ["x", keys.pub(),
+                          my_nonce.check(),
+                          sid, 28];
+                console.log(JSON.stringify(tx));
+                var stx = keys.sign(tx);
+                var r = await rpc.signed(stx);
+                r = r.slice(1);
+                r = r.map(function(x){
+                    return([-1, x[2], 0, 0, 0]);
+                });
+                //{0, pid}
+                posts_div_maker(
+                    r, my_nonce, sid, topdiv, true,
+                    show_posts_in_batches_of);
+                notifications_button.style.color =
+                    "blue";
+                notifications_button.innerHTML =
+                    "notifications";
+            });
+    div.appendChild(notifications_button);
+
+
+
     div.appendChild(br());
 
     var topdiv = document.createElement("div");
@@ -180,6 +211,7 @@
                 });
         my_account_div.appendChild(
             update_title_button);
+        my_account_div.appendChild(br());
         var description =
             text_input("description: ",
                        my_account_div);
@@ -235,6 +267,25 @@
             false, show_posts_in_batches_of);
     };
 
+    async function notifications_cron(pub){
+        if(!(keys.pub() === pub)){
+            return(0);
+        };
+        var tx = ["x", keys.pub(),
+                  my_nonce.check(),
+                  sid, 30];
+        var stx = keys.sign(tx);
+        var r = await rpc.signed(stx);
+        if(r > 0){
+            notifications_button.style.color =
+                "red";
+            notifications_button.innerHTML =
+                "notifications +".concat(r);
+        }
+        notifications_cron(pub);
+    };
+
+    
     keys.update_balance_callback(async function(){
         //if(my_nonce === undefined){
         my_nonce =
@@ -244,6 +295,22 @@
         refresh_my_page();
         await following.load(sid, my_nonce);
         your_account_button.click();
+
+        var tx = ["x", keys.pub(),
+                  my_nonce.check(),
+                  sid, 29];
+        console.log(JSON.stringify(tx));
+        var stx = keys.sign(tx);
+        var r = await rpc.signed(stx);
+        console.log(r);
+        if(r > 0){
+            notifications_button.style.color =
+                "red";
+            notifications_button.innerHTML =
+                "notifications +".concat(r);
+        }
+
+        notifications_cron(keys.pub());
     })
 
     async function reload_top_posts(){
@@ -286,6 +353,11 @@
             post = await post_loader(
                 noncer, sid, id);
         }
+        if(post[0] === "error"){
+            return(posts_div_maker(
+                pids.slice(1), noncer, sid, d,
+                show_author, n));
+        };
         var acc =
             await account_loader(
                 noncer, sid, post.author_id);
@@ -309,7 +381,9 @@
                 .concat("<br/>");
         }
         s = ""
+            .concat("<span style=\"font-size:130%\">")
             .concat(post.text)
+            .concat("</span>")
             .concat("<br/>")
             .concat(s)
             //.concat("posted at: ")
@@ -328,7 +402,6 @@
 
         if(noncer &&
            (noncer.id === post.author_id)){
-            //todo. this is your post, so give a button for deleting it.
             var confirm_div =
                 document.createElement("span");
             var delete_post_button = header_button(
@@ -452,6 +525,7 @@
         comment_text.rows = 4;
         comment_text.cols = window.innerWidth / 10;
         make_comment_div.appendChild(comment_text);
+        make_comment_div.appendChild(br());
 
         var comment_button =
             button_maker2(
@@ -520,7 +594,6 @@
     };
     async function following_div_maker(
         sid, id, noncer){
-        //todo. who this account follows.
         var div = document.createElement("div");
         var tx = ["x", keys.pub(),
                   noncer.check(), sid, 17, id];

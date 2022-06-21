@@ -9,7 +9,7 @@ async function account_loader(
     }
     var n = noncer.check();
     var tx = ["balance", keys.pub(), n, sid, id];
-    //console.log(tx);
+    console.log(JSON.stringify(tx));
     var stx = keys.sign(tx);
     var r = await rpc.signed(stx);
     return(decode_acc(id, r));
@@ -44,10 +44,15 @@ async function post_loader(
     //console.log(tx);
     var stx = keys.sign(tx);
     var post = await rpc.signed(stx);
+    if(post === "error"){
+        return(["error", "post deleted"]);
+    };
+    post = post[1];
     //{post, pid, text, author, timestamp, upvotes, downvotes, comments, parent}
     return(decode_post(post));
 };
 function decode_post(post){
+    console.log(JSON.stringify(post));
     var data =
         {pid: post[1],
          text: atob(post[2]),
