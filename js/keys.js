@@ -207,6 +207,7 @@ function keys_function1() {
 		keys_internal = new_keys_entropy(x);
 	    }
             update_pubkey();
+            update_balance();
         }
     }
     function check_balance(Callback) {

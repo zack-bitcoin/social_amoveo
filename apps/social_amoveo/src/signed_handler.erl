@@ -49,40 +49,31 @@ doit({balance, _, _, _, Pub}, From) ->
             {ok, list_to_tuple([AID|A3])}
     end;
 
-doit({send, _, _, _, Coins, To}, From) ->
-    %send coins. NOT coin-hours
-    ok = accounts:charge(From, settings:api_cost()),
-    if
-        is_integer(To) -> 
-            accounts:delegate(From, To, Coins);
-        true -> 
-            case pubkeys:read(To) of
-                error -> 
-                    accounts:delegate_new(
-                      From, Coins, 0);
-                {ok, ID} -> 
-                    accounts:delegate(
-                      From, ID, Coins)
-            end
-    end;
-doit({send, _, _, _, 2, CoinHours, To}, From) ->
-    %send coin-hours. NOT coins.
+doit({x, _, _, _, 0, Coins, CoinHours, Pub}, 
+     From) ->
+    %send coins and coin-hours
+    Pub2 = base64:encode(Pub),
     ok = accounts:charge(
-           From, CoinHours + settings:api_cost()),
+           From, settings:api_cost()),
+    F = fun(ID3) ->
+                accounts:change_coin_hours(
+                  ID3, CoinHours),
+                accounts:delegate(From, ID3, Coins)
+        end,
     if
-        is_integer(To) -> 
-            accounts:change_coin_hours(
-              To, CoinHours);
-        true ->
-            case pubkeys:read(To) of
+        is_integer(Pub2) -> F(Pub2);
+        true -> 
+            case pubkeys:read(Pub2) of
                 error -> 
-                    NewID = accounts:delegate_new(
-                              From, 0, CoinHours),
-                    {ok, NewID};
-                {ok, ID} -> 
-                    accounts:change_coin_hours(
-                      ID, CoinHours),
-                    {ok, 0}
+                    io:fwrite("creating new account\n"),
+                    ID = accounts:delegate_new(
+                           From, Coins, 
+                           CoinHours, Pub2),
+                    pubkeys:new(Pub2, ID),
+                    io:fwrite("with id \n"),
+                    io:fwrite(integer_to_list(ID)),
+                    io:fwrite("\n");
+                {ok, ID2} -> F(ID2)
             end
     end,
     {ok, 0};
@@ -378,11 +369,9 @@ doit({x, _, _, _, 29}, From) ->
     {ok, accounts:unseen_notifications(From)};
 doit({x, _, _, _, 30}, From) ->
     %notifications, delayed response
-    %N2 = accounts:maybe_remove_notification(From),
-
-    N0 = accounts:notifications_counter(From),
+    N = accounts:notifications_counter(From),
     delayed_notifications(
-      From, N0, erlang:timestamp());
+      From, N, erlang:timestamp());
 doit(X, _) ->
     io:fwrite("signed handler doit fail"),
     io:fwrite(X),

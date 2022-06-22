@@ -32,6 +32,70 @@
             function(){
                 clear_page();
                 topdiv.appendChild(keys.div);
+
+                var their_pub =
+                    text_input("request funds from pubkey: ",
+                               middiv);
+                their_pub.value = "BCjdlkTKyFh7BBx4grLUGFJCedmzo4e0XT1KJtbSwq5vCJHrPltHATB+maZ+Pncjnfvt9CsCcI9Rn1vO+fPLIV4=";
+                middiv.appendChild(br());
+                var coins = text_input("request this many coins: ",
+                                       middiv);
+                coins.value = "1";
+                middiv.appendChild(br());
+                var coin_hours =
+                    text_input("request this many coin-hours",
+                               middiv);
+                coin_hours.value = "1000";
+                middiv.appendChild(br());
+                var make_request_button =
+                    button_maker2(
+                        "make request",
+                        async function(){
+                            var tp = their_pub.value;
+                            
+                            var their_id = await rpc.apost(["x", 2, tp]);
+                            their_id = their_id[1];
+                            var their_nonce = await rpc.apost(["x", 1, their_id]);
+                            //their_nonce =
+                            //    their_nonce[1];
+                            console.log(coins.value);
+                            console.log(parseInt(coins.value));
+                            console.log(c2s(coins));
+                            var tx = [
+                                "x", tp,
+                                their_nonce+1,
+                                sid, 0, c2s(coins),
+                                c2s(coin_hours),
+                                keys.pub()
+                            ];
+                            var s = document.createElement("span");
+                            s.innerHTML = JSON.stringify(tx);
+                            middiv.appendChild(s);
+                            middiv.appendChild(br());
+                            var instructions = document.createElement("span");
+                            instructions.innerHTML = "use the amoveo light node to sign this request";
+                            middiv.appendChild(instructions);
+                            console.log(JSON.stringify(tx));
+                        });
+                middiv.appendChild(make_request_button);
+                middiv.appendChild(br());
+                var publish_tx = text_input("signed request: ", lowdiv);
+                var publish_button =
+                    button_maker2(
+                        "publish request",
+                        async function(){
+                            await rpc.signed(JSON.parse(publish_tx.value));
+                            publish_tx.value = "";
+                            //keys.update_balance();
+/*                            my_nonce =
+                                await nonce_builder(keys.pub());
+                            clear_page();
+                            refresh_my_page();
+                            await following.load(sid, my_nonce);
+                            your_account_button.click();
+                            */
+                        });
+                lowdiv.appendChild(publish_button);
             });
     div.appendChild(login_button);
     div.appendChild(span_dash());
@@ -268,7 +332,7 @@
     };
 
     async function notifications_cron(pub){
-        console.log("notifications cron\n");
+        //console.log("notifications cron\n");
         if(!(keys.pub() === pub)){
             return(0);
         };
@@ -277,7 +341,9 @@
                   sid, 30];
         var stx = keys.sign(tx);
         var r = await rpc.signed(stx);
-        console.log(r);
+        if(!(keys.pub() === tx[1])){
+            return(0);
+        };
         if(r > 0){
             notifications_button.style.color =
                 "red";

@@ -12,8 +12,8 @@
          update_nonce/2,
          delegate/3,%delegate value to an existing account
          undelegate/2,
-         delegate_new/3,%delegate coins and/or coin-hours to create a new account
-         delegate_new/4,
+         delegate_new/4,%delegate coins and/or coin-hours to create a new account
+         delegate_new/5,
          pay_interest/1,%update the coin-hours balance after a period of time. Removing coins that expired, and paying out new coin-hours based on the number of coins held.
          make_post/2, remove_post/2,
          make_vote/4, remove_vote/2, 
@@ -584,7 +584,7 @@ handle_call({new_account, Pub, Height}, _, X) ->
     end,
     {reply, X, X+1};
 handle_call({delegate_new, AID, Coins, 
-             CoinHours, Height}, 
+             CoinHours, NewPub, Height}, 
             _From, Top) -> 
     %for the case where we are creating an account that doesn't exist in our database yet.
     case ets_read(AID) of
@@ -617,6 +617,7 @@ handle_call({delegate_new, AID, Coins,
                        }),
                     ets_write(
                       Top, #acc{
+                        pubkey = NewPub,
                         coin_hours = CoinHours,
                         delegated = -Coins,
                         delegated_by = 
@@ -704,15 +705,15 @@ delegate(From, To, Amount)
     gen_server:cast(
       ?MODULE, 
       {delegate, From, To, Amount}).
-delegate_new(AID, Coins, CoinHours) ->
+delegate_new(AID, Coins, CoinHours, NewPub) ->
     Height = height_tracker:check(),
-    delegate_new(AID, Coins, CoinHours, Height).
-delegate_new(AID, Coins, CoinHours, Height)
+    delegate_new(AID, Coins, CoinHours, NewPub, Height).
+delegate_new(AID, Coins, CoinHours, NewPub, Height)
   when (is_integer(Coins) and
         is_integer(CoinHours)) ->
     gen_server:call(
       ?MODULE,
-      {delegate_new, AID, Coins, CoinHours, Height}).
+      {delegate_new, AID, Coins, CoinHours, NewPub, Height}).
 undelegate(From, To) ->
     gen_server:cast(?MODULE, {undelegate, From, To}).
 pay_interest(AID) ->
@@ -1273,7 +1274,7 @@ test(1) ->
     update_nonce(AID1, 2),
     change_coin_hours(AID1, 12000),
    
-    AID2 = delegate_new(AID1, 150, 0),
+    AID2 = delegate_new(AID1, 150, 0, password),
     change_coin_hours(AID2, 15000),
 
     make_post(AID1, 4),
@@ -1330,7 +1331,7 @@ test(2) ->
     make_vote(AID1, 1, 5000, up),
     
 
-    AID2 = delegate_new(AID1, 2000, 2000),
+    AID2 = delegate_new(AID1, 2000, 2000, password),
     
     follow(AID2, AID1),
     send_dm(AID1, AID2, 1),

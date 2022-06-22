@@ -1,10 +1,5 @@
 
-* notifications when you get a comment on a post.
-- it seems like we need 2 internal variables for each account. a nonce for how many notifications you have received in total, and another number, for how far behind you are from having seen all of the notifications. # unseen notifications.
-The nonce is needed for the delayed response api.
-the unseen notifications is needed so that even if you load the website from a different computer, it still says the correct number of unseen notifications.
-
-* delegating coins or coin hours, especially with cold storage.
+* undelegating coins.
 
 * most popular posts according to who you follow.
 
