@@ -31,8 +31,13 @@
             "login ",
             function(){
                 clear_page();
+                var title1 = document.createElement("h3");
+                title1.innerHTML = "load keys from file, or from a brain wallet.";
+                topdiv.appendChild(title1);
                 topdiv.appendChild(keys.div);
-
+                var title = document.createElement("h3");
+                title.innerHTML = "request funds from your cold storage wallet.";
+                middiv.appendChild(title);
                 var their_pub =
                     text_input("request funds from pubkey: ",
                                middiv);
@@ -58,9 +63,9 @@
                             var their_nonce = await rpc.apost(["x", 1, their_id]);
                             //their_nonce =
                             //    their_nonce[1];
-                            console.log(coins.value);
-                            console.log(parseInt(coins.value));
-                            console.log(c2s(coins));
+                            //console.log(coins.value);
+                            //console.log(parseInt(coins.value));
+                            //console.log(c2s(coins));
                             var tx = [
                                 "x", tp,
                                 their_nonce+1,
@@ -75,7 +80,7 @@
                             var instructions = document.createElement("span");
                             instructions.innerHTML = "use the amoveo light node to sign this request";
                             middiv.appendChild(instructions);
-                            console.log(JSON.stringify(tx));
+                            //console.log(JSON.stringify(tx));
                         });
                 middiv.appendChild(make_request_button);
                 middiv.appendChild(br());
@@ -84,16 +89,13 @@
                     button_maker2(
                         "publish request",
                         async function(){
-                            await rpc.signed(JSON.parse(publish_tx.value));
-                            publish_tx.value = "";
-                            //keys.update_balance();
-/*                            my_nonce =
-                                await nonce_builder(keys.pub());
-                            clear_page();
-                            refresh_my_page();
-                            await following.load(sid, my_nonce);
-                            your_account_button.click();
-                            */
+                            var r = await rpc.signed(JSON.parse(publish_tx.value));
+                            if(r === 0){
+                                publish_tx.value = "";
+                                keys.update_balance();
+                            } else {
+                                console.log(JSON.stringify(r));
+                            };
                         });
                 lowdiv.appendChild(publish_button);
             });
@@ -126,7 +128,7 @@
 
     var following_posts =
         header_button(
-            "posts from who you follow",
+            "posts by who you follow",
             async function(){
                 clear_page();
                 var following_posts_div =
@@ -138,7 +140,6 @@
                 var stx = keys.sign(tx);
                 var r = await rpc.signed(stx);
                 r = r.slice(1);
-                console.log(JSON.stringify(r));
                 //[[pid...],[pid ...]...]
                 var posts = [];
                 r.map(function(x){
@@ -149,10 +150,6 @@
                     return(b[3] + b[4]
                            - a[3] - a[4]);
                 });
-                console.log(JSON.stringify(posts));
-                
-                //r = r.map(function(x){
-                //    return([-1, x, 0,0,0])});
                 posts_div_maker(
                     posts, my_nonce, sid,
                     following_posts_div,
@@ -161,13 +158,58 @@
                 topdiv.appendChild(
                     following_posts_div);
             });
-    
+
     div.appendChild(following_posts);
+    div.appendChild(br());
+    //div.appendChild(span_dash());
+
+    var voted_posts =
+        header_button(
+            "posts upvoted by who you follow",
+            async function(){
+                //list of who you follow.
+                var tx =
+                    ["x", keys.pub(),
+                     my_nonce.check(), sid,
+                     17, my_nonce.id];
+                var stx = keys.sign(tx);
+                var r = await rpc.signed(stx);
+                var following = r.slice(1);
+                console.log(JSON.stringify(following));
+                var votes = await Promise.all(following.map(
+                    async function(x){
+                        var tx =
+                            ["x", keys.pub(),
+                             my_nonce.check(), sid,
+                             31, x];
+                        var stx = keys.sign(tx);
+                        var r = await rpc.signed(stx);
+                        r = r.slice(1);
+                        return(r);
+                    }));
+                votes = votes.reduce(function(a, b){ return(a.concat(b));}, []);
+                //vote = [-7, id, amount, direction, time]
+                //list of votes from these accounts.
+                //accumulate repeated votes on same post.
+                votes = accumulate_repeated_votes(votes);
+                //sort post ids based on total voted.
+                votes = votes.sort(function(a, b){
+                    return(b[2] - a[2]);});
+
+                clear_page();
+                posts_div_maker(
+                    votes, my_nonce, sid, topdiv,
+                    true, show_posts_in_batches_of
+                );
+                    
+            });
+    
+    div.appendChild(voted_posts);
     div.appendChild(span_dash());
 
     var notifications_button =
         header_button(
-            "notifications",
+            "comment notifications",
             async function(){
                 clear_page();
                 var notifications_div =
@@ -175,7 +217,7 @@
                 var tx = ["x", keys.pub(),
                           my_nonce.check(),
                           sid, 28];
-                console.log(JSON.stringify(tx));
+                //console.log(JSON.stringify(tx));
                 var stx = keys.sign(tx);
                 var r = await rpc.signed(stx);
                 r = r.slice(1);
@@ -189,7 +231,7 @@
                 notifications_button.style.color =
                     "blue";
                 notifications_button.innerHTML =
-                    "notifications";
+                    "comment notifications";
             });
     div.appendChild(notifications_button);
 
@@ -232,19 +274,27 @@
                 var stx = keys.sign(tx);
                 var r = await rpc.signed(stx);
                 refresh_my_page();
-                console.log(r);
+                //console.log(r);
                 post_text.innerHTML = "";
             });
     make_post_div.appendChild(br());
     make_post_div.appendChild(post_button);
 
-
-    //const urlParams = new URLSearchParams(window.location.search);
-    //var pubkey = urlParams.get('pubkey');
-    //pubkey = pubkey.replace(/\ /g, "+");
-
-
     var my_nonce;
+
+
+    const urlParams = new URLSearchParams(window.location.search);
+    var post_id = urlParams.get('post');
+
+    if(post_id){
+        post_id = post_id.replace(/\ /g, "+");
+       // console.log(post_id);
+        var post =
+            await post_loader(
+                my_nonce, sid, parseInt(post_id));
+        console.log(JSON.stringify(post));
+        load_post_page(post, my_nonce, sid);
+    };
 
     async function refresh_my_page(){
         my_account_div.innerHTML = "";
@@ -272,6 +322,7 @@
                      btoa(user_title.value)];
                     var stx = keys.sign(tx);
                     await rpc.signed(stx);
+                    delete accounts_memoized[my_nonce.id];
                 });
         my_account_div.appendChild(
             update_title_button);
@@ -348,7 +399,7 @@
             notifications_button.style.color =
                 "red";
             notifications_button.innerHTML =
-                "notifications +".concat(r);
+                "comment notifications +".concat(r);
         }
         notifications_cron(pub);
     };
@@ -367,15 +418,15 @@
         var tx = ["x", keys.pub(),
                   my_nonce.check(),
                   sid, 29];
-        console.log(JSON.stringify(tx));
+        //console.log(JSON.stringify(tx));
         var stx = keys.sign(tx);
         var r = await rpc.signed(stx);
-        console.log(r);
+        //console.log(r);
         if(r > 0){
             notifications_button.style.color =
                 "red";
             notifications_button.innerHTML =
-                "notifications +".concat(r);
+                "comment notifications +".concat(r);
         }
 
         notifications_cron(keys.pub());
@@ -414,7 +465,7 @@
             return(0);
         };
         var id = pids[0][1];
-        console.log(JSON.stringify(pids));
+        //console.log(JSON.stringify(pids));
         if(id === "null"){
             return(posts_div_maker(
                 pids.slice(1), noncer, sid, d,
@@ -427,7 +478,7 @@
             post = await post_loader(
                 noncer, sid, id);
         }
-        console.log(post);
+        //console.log(post);
         if(post[0] === "error"){
             return(posts_div_maker(
                 pids.slice(1), noncer, sid, d,
@@ -439,7 +490,9 @@
         //console.log([noncer.id, post.author_id]);
         var author_name = acc.username;
         var s = "";
-        if(show_author){
+        console.log(author_name);
+        if(show_author &&
+           (!(author_name === undefined))){
             var author_link = header_button(
                 "author: "
                     .concat(acc.username.slice(0, 30))
@@ -455,6 +508,7 @@
                 .concat(s2c(acc.coins))
                 .concat("<br/>");
         }
+        if(post.text){
         s = ""
             .concat("<span style=\"font-size:130%\">")
             .concat(post.text)
@@ -471,9 +525,11 @@
         var post_p = document.createElement("span");
         post_p.onclick = function(){
             load_post_page(post, noncer, sid);
+            return(0);
         };
         post_p.innerHTML = s;
-        d.appendChild(post_p);
+            d.appendChild(post_p);
+        }
 
         if(noncer &&
            (noncer.id === post.author_id)){
@@ -488,7 +544,7 @@
                             var tx = ["x", keys.pub(),
                                       noncer.check(),
                                       sid, 25, post.pid];
-                            console.log(JSON.stringify(tx));
+                            //console.log(JSON.stringify(tx));
                             var stx = keys.sign(tx);
                             await rpc.signed(stx);
                             refresh_my_page();
@@ -533,7 +589,7 @@
         topdiv.appendChild(this_account_div);
         topdiv.appendChild(this_account_posts_div);
     };
-    function load_post_page(post, noncer, sid){
+    async function load_post_page(post, noncer, sid){
 
         var post_div =
             document.createElement("div");
@@ -542,8 +598,13 @@
         var comments_div =
             document.createElement("div");
 
-        posts_div_maker([[-1, post.pid, 0, 0, 0]], noncer, sid,
+        await posts_div_maker([[-1, post.pid, 0, 0, 0]], noncer, sid,
                         post_div, true, 2);
+        var link = document.createElement("a");
+        link.href = "?post=".concat(post.pid);
+        link.innerHTML = "shareable link to this post";
+        link.target = "_blank";
+        post_div.appendChild(link);
         posts_div_maker(post.comments.map(
             function(x){return([-1, x, 0, 0, 0])}),
                         noncer, sid,
@@ -574,6 +635,7 @@
                 "upvote",
                 async function(){
                     await vote(post.pid, noncer, sid, 1);
+                    delete posts_memoized[post.pid];
                     var post2 = await post_loader(
                         noncer, sid, post.pid);
                     load_post_page(post2, noncer, sid);
@@ -586,6 +648,7 @@
                 "downvote",
                 async function(){
                     await vote(post.pid, noncer, sid, -1);
+                    delete posts_memoized[post.pid];
                     var post2 = await post_loader(
                         noncer, sid, post.pid);
                     load_post_page(post2, noncer, sid);
@@ -614,10 +677,11 @@
                         post.pid];
                     var stx = keys.sign(tx);
                     var r = await rpc.signed(stx);
-                    //console.log(r);
                     comment_text.value = "";
+                    delete posts_memoized[post.pid];
                     var post2 = await post_loader(
                         noncer, sid, post.pid);
+                    refresh_my_page();
                     load_post_page(post2, noncer, sid);
                 });
         make_comment_div.appendChild(comment_button);
@@ -660,9 +724,9 @@
         var stx = keys.sign(tx);
         var stx2 = keys.sign(tx2);
         var stx3 = keys.sign(tx3);
-        console.log(JSON.stringify(stx));
-        console.log(JSON.stringify(stx2));
-        console.log(JSON.stringify(stx3));
+        //console.log(JSON.stringify(stx));
+        //console.log(JSON.stringify(stx2));
+        //console.log(JSON.stringify(stx3));
         await rpc.signed(stx);
         await rpc.signed(stx2);
         await rpc.signed(stx3);
@@ -716,5 +780,37 @@
         return(following_div_maker2(
             accs.slice(1), sid, aid,
             noncer, div, n-1));
+    };
+    function accumulate_repeated_votes(v){
+        if(v.length < 2){
+            return(v);
+        };
+        if(!(v[0][0])){
+            console.log("bad type error");
+            return(0);
+        }
+        var a = v[0];
+        v = v.slice(1);
+
+        var b = try_arv(a, v, []);
+        if(b === "no repeat"){
+            return([a].concat(accumulate_repeated_votes(v)));
+        } else{
+            return(accumulate_repeated_votes(b));
+        }
+    };
+    function try_arv(a, v, q){
+        if(v.length === 0){
+            return("no repeat");
+        } else if((v[0][1] === a[1])
+                  && (v[0][3] === a[3])){
+            return(q.concat([[-7, a[1],
+                              a[2] + v[0][2],
+                              a[3], 0]])
+                   .concat(v.slice(1)));
+        } else {
+            return(try_arv(a, v.slice(1),
+                           q.concat([v[0]])));
+        }
     };
 })();

@@ -1,18 +1,41 @@
+var accounts_memoized = {};
 async function account_loader(
     noncer, sid, id){
+    var acc = accounts_memoized[id];
+    if(!(acc) ||
+       ((timestamp() - acc.timestamp) > 60000)){
+        return(await account_loader2(
+            noncer, sid, id));
+    };
+    return(acc.val);
+}
+
+async function account_loader2(noncer, sid, id){
     if(noncer === undefined){
         //slow free version, if you have no coin-hours.
         var request = ["x", 4, id];
         var acc = await rpc.apost(request);
-        acc = acc[1];
-        return(decode_acc(id, acc));
+        if(acc === "error"){
+            return("error");
+        } else {
+            acc = acc[1];
+            return(decode_acc(id, acc));
+        };
     }
     var n = noncer.check();
     var tx = ["balance", keys.pub(), n, sid, id];
     //console.log(JSON.stringify(tx));
     var stx = keys.sign(tx);
     var r = await rpc.signed(stx);
-    return(decode_acc(id, r));
+    if(r === "error"){
+        delete accounts_memoized[id];
+        return(["error", "account deleted"]);
+    };
+    var acc = decode_acc(id, r);
+    accounts_memoized[id] =
+        {timestamp: timestamp(),
+         val: acc};
+    return(acc);
 };
 function decode_acc(id, r){
     var data = {
@@ -28,28 +51,47 @@ function decode_acc(id, r){
     return(data);
 }
 
+var posts_memoized = {};
 async function post_loader(
+    noncer, sid, id){
+    var post = posts_memoized[id];
+    if(!(post) ||
+       ((timestamp() - post.timestamp) > 60000)){
+        return(await post_loader2(
+            noncer, sid, id));
+    };
+    return(post.val);
+};
+async function post_loader2(
     noncer, sid, id){
     if(noncer === undefined){
         //slow free version, if you have no coin-hours.
         var request = ["x", 3, id];
         var post = await rpc.apost(request);
-        post = post[1];
-        return(decode_post(post));
+        if(post === "error"){
+            return("error");
+        } else {
+            post = post[1];
+            return(decode_post(post));
+        } 
     }
     var n = noncer.check();
     //lookup a post by id.
     var tx = ["x", keys.pub(), noncer.check(),
               sid, 14, id];
-    console.log(tx);
     var stx = keys.sign(tx);
     var post = await rpc.signed(stx);
     if(post === "error"){
+        delete posts_memoized[id];
         return(["error", "post deleted"]);
     };
     post = post[1];
     //{post, pid, text, author, timestamp, upvotes, downvotes, comments, parent}
-    return(decode_post(post));
+    var post = decode_post(post);
+    posts_memoized[id] =
+        {timestamp: timestamp(),
+         val: post};
+    return(post);
 };
 function decode_post(post){
     //console.log(JSON.stringify(post));

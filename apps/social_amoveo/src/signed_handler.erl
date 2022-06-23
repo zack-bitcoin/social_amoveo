@@ -112,8 +112,7 @@ doit({x, _, _, _, 5, Text, Parent}, From) ->
     %which is 4000*settings:coins_per_byte() in coin-hours.
     ok = accounts:charge(
            From, 
-           settings:api_cost()
-           + settings:comment_notification_fee()),
+           settings:api_cost()),
     case posts:comment(Text, From, Parent) of
         {error, <<"invalid parent">>} -> 
             {error, <<"you tried to commented on a post that does not exist in the database.">>};
@@ -372,6 +371,9 @@ doit({x, _, _, _, 30}, From) ->
     N = accounts:notifications_counter(From),
     delayed_notifications(
       From, N, erlang:timestamp());
+doit({x, _, _, _, 31, AID}, From) ->
+    %votes.
+    {ok, accounts:votes(AID)};
 doit(X, _) ->
     io:fwrite("signed handler doit fail"),
     io:fwrite(X),

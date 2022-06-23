@@ -1,8 +1,6 @@
 
-* undelegating coins.
 
-* most popular posts according to who you follow.
-
+* sending (rather than requesting) coins.
 
 * this account is followed by these users who you are following.
 
@@ -12,6 +10,6 @@
 
 * browse dms
 
-* memoize posts and accounts, so we don't have to re-download them so frequently.
+* undelegating coins.
 
 

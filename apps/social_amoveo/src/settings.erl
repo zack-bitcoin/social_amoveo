@@ -13,7 +13,7 @@
          server_id/0,
          minimum_account_balance/0,
          delegation_cost/0,
-         comment_notification_fee/0,
+         %comment_notification_fee/0,
 
          api_cost/0
          
@@ -74,12 +74,15 @@ vote_cost() -> 20 * coins_per_byte().
 delegation_cost() -> 20 * coins_per_byte().
 notification_duration() ->
     1000.%for how many blocks do notifications get stored.
-comment_notification_fee() ->
-    notification_duration() 
-        * follow_cost().
+%comment_notification_fee() ->
+%    notification_duration() 
+%        * follow_cost().
 %(coin-hours produced per block are the same as the market cap. So if you have (Market cap) many coin-hours, then you should be able to use nearly 100% of the server's CPU per hour)
 
-minimum_account_balance() -> 66 * coins_per_byte().
+minimum_account_balance() -> 
+    66 * coins_per_byte() 
+        + (accounts:notification_limit() 
+           * follow_cost()). 
 
 api_cost() ->
    %assuming we can do 500 basic api requests per second. there are 600 seconds per block. so we want to do 300 000 api requests per block.

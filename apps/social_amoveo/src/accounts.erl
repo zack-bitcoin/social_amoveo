@@ -74,7 +74,9 @@ notification_limit() ->
          votes = [], %{post_id, amount, direction, timestamp}
          notifications = [],
          unseen_notifications = 0,
-         notifications_counter = 0
+         notifications_counter = 0,
+         unseen_dms = 0,
+         dms_counter = 0
         }).
 -define(repossess_period, 60000).
 

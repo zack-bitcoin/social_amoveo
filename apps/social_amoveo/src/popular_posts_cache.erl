@@ -52,16 +52,26 @@ cron2(ID, Limit,
                        insert(loved, Post, Loved);
                     true -> Loved
                 end,
-            CutoffL2 = posts:upvotes(
-                         lists:last(Loved2)),
+            CutoffL2 = 
+                if
+                    (length(Loved2) >= ?size) ->
+                        posts:upvotes(
+                          lists:last(Loved2));
+                    true -> CutoffL
+                end,
             Hated2 = 
                 if
                     (DV >= CutoffH) ->
                         insert(hated, Post, Hated);
                     true -> Hated
                 end,
-            CutoffH2 = posts:downvotes(
-                         lists:last(Loved2)),
+            CutoffH2 = 
+                if
+                    (length(Hated2) >= ?size) ->
+                        posts:downvotes(
+                          lists:last(Hated2));
+                    true -> CutoffH
+                end,
             cron2(ID+1, Limit, 
                   CutoffL2, Loved2,
                   CutoffH2, Hated2)
