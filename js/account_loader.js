@@ -1,9 +1,11 @@
 var accounts_memoized = {};
 async function account_loader(
-    noncer, sid, id){
+    noncer, sid, id, type){
     var acc = accounts_memoized[id];
-    if(!(acc) ||
-       ((timestamp() - acc.timestamp) > 60000)){
+    if((!(acc)) ||
+       (type === "refresh") ||
+       ((!(type === "cached")) &&
+        ((timestamp() - acc.timestamp) > 60000))){
         return(await account_loader2(
             noncer, sid, id));
     };
@@ -53,10 +55,12 @@ function decode_acc(id, r){
 
 var posts_memoized = {};
 async function post_loader(
-    noncer, sid, id){
+    noncer, sid, id, type){
     var post = posts_memoized[id];
-    if(!(post) ||
-       ((timestamp() - post.timestamp) > 60000)){
+    if((!(post)) ||
+       (type === "refresh") ||
+       ((!(type === "cached")) &&
+        ((timestamp() - post.timestamp) > 60000))){
         return(await post_loader2(
             noncer, sid, id));
     };

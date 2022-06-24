@@ -1,3 +1,4 @@
+var main;
 (async function(){
     var div = document.createElement("div");
     document.body.appendChild(div);
@@ -160,12 +161,12 @@
             });
 
     div.appendChild(following_posts);
+    div.appendChild(span_dash());
     div.appendChild(br());
-    //div.appendChild(span_dash());
 
     var voted_posts =
         header_button(
-            "posts upvoted by who you follow",
+            "posts voted on by who you follow",
             async function(){
                 //list of who you follow.
                 var tx =
@@ -260,7 +261,9 @@
 
     var post_text = document.createElement("textarea");
     post_text.rows = 4;
-    post_text.cols = window.innerWidth / 10;
+    post_text.cols =
+        Math.min(window.innerWidth / 10,
+                 45);
     make_post_div.appendChild(post_text);
     
     var post_button =
@@ -478,12 +481,12 @@
             post = await post_loader(
                 noncer, sid, id);
         }
-        //console.log(post);
         if(post[0] === "error"){
             return(posts_div_maker(
                 pids.slice(1), noncer, sid, d,
                 show_author, n));
         };
+        //console.log(JSON.stringify(post));
         var acc =
             await account_loader(
                 noncer, sid, post.author_id);
@@ -504,9 +507,9 @@
 
             d.appendChild(author_link);
             s = s
-                .concat("author balance: ")
+                .concat("author balance:")
                 .concat(s2c(acc.coins))
-                .concat("<br/>");
+                .concat(" ");
         }
         if(post.text){
         s = ""
@@ -515,12 +518,9 @@
             .concat("</span>")
             .concat("<br/>")
             .concat(s)
-            //.concat("posted at: ")
-            //.concat(post.server_timestamp)
-            //.concat("<br/>")
-            .concat("upvotes: ")
+            .concat("upvotes:")
             .concat(s2c(post.upvotes))
-            .concat(" downvotes: ")
+            .concat(" downvotes:")
             .concat(s2c(post.downvotes));
         var post_p = document.createElement("span");
         post_p.onclick = function(){
@@ -530,6 +530,17 @@
         post_p.innerHTML = s;
             d.appendChild(post_p);
         }
+        console.log(JSON.stringify(post));
+        var ts = post.server_timestamp;
+        ts = (ts[1]*1000000*1000) + (ts[2]*1000);
+        var date = new Date(ts);
+        console.log(date.toLocaleString());
+
+        var date_span =
+            document.createElement("span");
+        date_span.innerHTML = " date:"
+            .concat(date.toLocaleString());
+        d.appendChild(date_span);
 
         if(noncer &&
            (noncer.id === post.author_id)){
@@ -598,8 +609,12 @@
         var comments_div =
             document.createElement("div");
 
-        await posts_div_maker([[-1, post.pid, 0, 0, 0]], noncer, sid,
-                        post_div, true, 2);
+        await posts_div_maker(
+            [[-1, post.pid, 0, 0, 0]], noncer, sid,
+            post_div, true, 2);
+        //var post = await post_loader(
+        //    noncer, sid, post.pid);
+        //console.log(JSON.stringify(post));
         var link = document.createElement("a");
         link.href = "?post=".concat(post.pid);
         link.innerHTML = "shareable link to this post";
@@ -661,7 +676,9 @@
         var comment_text =
             document.createElement("textarea");
         comment_text.rows = 4;
-        comment_text.cols = window.innerWidth / 10;
+        comment_text.cols =
+            Math.min(window.innerWidth / 10,
+                    45);
         make_comment_div.appendChild(comment_text);
         make_comment_div.appendChild(br());
 
@@ -803,14 +820,19 @@
         if(v.length === 0){
             return("no repeat");
         } else if((v[0][1] === a[1])
-                  && (v[0][3] === a[3])){
+                //  && (v[0][3] === a[3])
+                 ){
             return(q.concat([[-7, a[1],
                               a[2] + v[0][2],
-                              a[3], 0]])
+                              0, 0]])
                    .concat(v.slice(1)));
         } else {
             return(try_arv(a, v.slice(1),
                            q.concat([v[0]])));
         }
+    };
+
+    main = {
+        load_account_page: load_account_page
     };
 })();
