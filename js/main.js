@@ -531,7 +531,8 @@ var main;
             .concat(s2c(post.upvotes))
             .concat(" downvotes:")
             .concat(s2c(post.downvotes));
-        var post_p = document.createElement("span");
+            var post_p = document.createElement("span");
+            post_p.className = "clickable";
         post_p.onclick = function(){
             load_post_page(post, noncer, sid);
             return(0);

@@ -606,6 +606,7 @@ function header_button(text, f){
     x.onclick = function(){
         f();
     };
+    x.className = "clickable";
     return(x);
 }
 
