@@ -36,9 +36,13 @@ start_http() ->
 		  {"/", http_handler, []}
 		 ]}]),
     Port = 8095,
-    {ok, _} = cowboy:start_http(
-                http, 100,
-                [{ip, {0, 0, 0, 0}}, {port, Port}],
-                [{env, [{dispatch, Dispatch}]}]),
+%    {ok, _} = cowboy:start_http(
+%                http, 100,
+%                [{ip, {0, 0, 0, 0}}, {port, Port}],
+%                [{env, [{dispatch, Dispatch}]}]),
+    {ok, _} = cowboy:start_clear(
+                http,
+                [{ip, {0,0,0,0}}, {port, Port}],
+                #{env => #{dispatch => Dispatch}}),
     ok.
 

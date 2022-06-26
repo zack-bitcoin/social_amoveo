@@ -5,7 +5,8 @@ init(Req0, Opts) ->
 init(_Type, Req, _Opts) -> {ok, Req, no_state}.
 terminate(_Reason, _Req, _State) -> ok.
 handle(Req, State) ->
-    {ok, Data0, Req2} = cowboy_req:body(Req),
+    %{ok, Data0, Req2} = cowboy_req:body(Req),
+    {ok, Data0, Req2} = cowboy_req:read_body(Req),
     {IP, _} = cowboy_req:peer(Req2),
     Data1 = jiffy:decode(Data0),
     Stx = packer:unpack_helper(Data1),
@@ -22,8 +23,10 @@ handle(Req, State) ->
     D = packer:pack(doit(Tx, AID)),
     accounts:update_nonce(AID, Nonce),
 
-    Headers=[{<<"content-type">>,<<"application/octet-stream">>},
-    {<<"Access-Control-Allow-Origin">>, <<"*">>}],
+    %Headers=[{<<"content-type">>,<<"application/octet-stream">>},
+    %{<<"Access-Control-Allow-Origin">>, <<"*">>}],
+    Headers = #{<<"content-type">> => <<"application/octet-stream">>,
+    <<"Access-Control-Allow-Origin">> => <<"*">>},
     Req4 = cowboy_req:reply(200, Headers, D, Req2),
     {ok, Req4, State}.
 doit({test, _, _, _}, _) -> {ok, "success"};
