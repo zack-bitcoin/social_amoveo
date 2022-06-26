@@ -99,9 +99,12 @@ async function post_loader2(
 };
 function decode_post(post){
     //console.log(JSON.stringify(post));
+    var text = atob(post[2])
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
     var data =
         {pid: post[1],
-         text: atob(post[2]),
+         text: text,
          author_id: post[3],
          server_timestamp: post[4],
          upvotes: post[5],
