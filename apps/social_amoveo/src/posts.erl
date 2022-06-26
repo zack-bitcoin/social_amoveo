@@ -9,6 +9,8 @@
          cost/1]).
 -define(LOC, "posts.db").
 
+-define(max_post_length, 512).
+
 
 -record(post, 
         {id, %number bigger than 0
@@ -107,9 +109,11 @@ handle_call({vote, Type, PID, Amount}, _, X) ->
 handle_call(_, _From, X) -> {reply, X, X}.
 
 new(Text, Author) when is_binary(Text) ->
+    true = size(Text) < ?max_post_length,
     gen_server:call(?MODULE, {post, Text, Author}).
 comment(Text, Author, Parent) 
   when is_binary(Text) ->
+    true = size(Text) < ?max_post_length,
     X = gen_server:call(
           ?MODULE, {comment, Text, 
                     Author, Parent}),
