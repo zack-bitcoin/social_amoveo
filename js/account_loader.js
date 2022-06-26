@@ -101,7 +101,13 @@ function decode_post(post){
     //console.log(JSON.stringify(post));
     var text = atob(post[2])
         .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;");
+        .replace(/>/g, "&gt;")
+        .replace(/\n/, "<br>")
+        .replace(/\n/, "<br>")
+        .replace(/\n/, "<br>")
+        .replace(/\n/, "<br>")
+        .replace(/\n/, "<br>")
+        .replace(/\n/, "<br>");
     var data =
         {pid: post[1],
          text: text,
