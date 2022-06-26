@@ -270,6 +270,9 @@ var main;
         button_maker2(
             "make post",
             async function(){
+                if(post_text.value.length > 512){
+                    post_button.value = "make post - error, you can only have 512 characters. that is ".concat((post_text.value.length)).concat(" characters");
+                }
                 var tx =
                     ["x", keys.pub(),
                      my_nonce.check(), sid, 4,
@@ -687,6 +690,9 @@ var main;
             button_maker2(
                 "make comment",
                 async function(){
+                if(comment_text.value.length > 512){
+                    comment_button.value = "make comment - error, you can only have 512 characters. that is ".concat((comment_text.value.length)).concat(" characters");
+                }
                     var tx = [
                         "x", keys.pub(),
                         my_nonce.check(),
