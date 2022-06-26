@@ -8,7 +8,10 @@ init(Req0, Opts) ->
     handle(Req0, Opts).	
 handle(Req, _) ->
     %{F, _} = cowboy_req:path(Req),
-    F = cowboy_req:path(Req),
+    F = case cowboy_req:path(Req) of
+            {This, _} -> This;
+            That ->  That
+        end,
     %io:fwrite(F),
     PrivDir0 = "../../../../js",
     PrivDir = list_to_binary(PrivDir0),
@@ -25,7 +28,6 @@ handle(Req, _) ->
 	       <<"/home.html">> -> true;
 	       <<"/keys.js">> -> true;
 	       <<"/main.js">> -> true;
-	       <<"/rpc.js">> -> true;
 	       <<"/server.js">> -> true;
 	       <<"/sha256.js">> -> true;
 	       <<"/signing.js">> -> true;
