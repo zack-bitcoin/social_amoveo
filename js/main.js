@@ -27,6 +27,12 @@ var main;
         lowdiv.innerHTML = "";
     };
 
+    var source_link = document.createElement("a");
+    source_link.innerHTML = "source code for this website";
+    source_link.href = "https://github.com/zack-bitcoin/social_amoveo";
+    div.appendChild(source_link);
+    div.appendChild(br());
+
     var login_button =
         header_button(
             "login ",
@@ -236,8 +242,7 @@ var main;
             });
     div.appendChild(notifications_button);
 
-
-
+    
     div.appendChild(br());
 
     var topdiv = document.createElement("div");
