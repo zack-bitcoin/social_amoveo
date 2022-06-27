@@ -68,6 +68,10 @@ async function post_loader(
 };
 async function post_loader2(
     noncer, sid, id){
+    if(!id){
+        console.log("failing to look up post with invalid id");
+        return(0);
+    };
     if(noncer === undefined){
         //slow free version, if you have no coin-hours.
         var request = ["x", 3, id];
@@ -83,6 +87,7 @@ async function post_loader2(
     //lookup a post by id.
     var tx = ["x", keys.pub(), noncer.check(),
               sid, 14, id];
+    console.log(JSON.stringify(tx));
     var stx = keys.sign(tx);
     var post = await rpc.signed(stx);
     if(post === "error"){

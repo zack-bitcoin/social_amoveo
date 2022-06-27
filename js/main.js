@@ -540,11 +540,9 @@ var main;
         post_p.innerHTML = s;
             d.appendChild(post_p);
         }
-        console.log(JSON.stringify(post));
         var ts = post.server_timestamp;
         ts = (ts[1]*1000000*1000) + (ts[2]*1000);
         var date = new Date(ts);
-        console.log(date.toLocaleString());
 
         var date_span =
             document.createElement("span");
@@ -611,7 +609,7 @@ var main;
         topdiv.appendChild(this_account_posts_div);
     };
     async function load_post_page(post, noncer, sid){
-
+        console.log("load post page");
         var post_div =
             document.createElement("div");
         var make_comment_div =
@@ -619,12 +617,19 @@ var main;
         var comments_div =
             document.createElement("div");
 
+        var many_ancestors_to_show = 5;
+        
+        var parent_ids =
+            await comment_parent_chain(
+                post, noncer, sid, post_div,
+            many_ancestors_to_show);
+        parent_ids = parent_ids.map(function(x){
+            return([-1, x, 0,0,0])});
+        parent_ids = parent_ids.reverse();
         await posts_div_maker(
-            [[-1, post.pid, 0, 0, 0]], noncer, sid,
-            post_div, true, 2);
-        //var post = await post_loader(
-        //    noncer, sid, post.pid);
-        //console.log(JSON.stringify(post));
+            parent_ids, noncer, sid, post_div,
+            true, many_ancestors_to_show);
+
         var link = document.createElement("a");
         link.href = "?post=".concat(post.pid);
         link.innerHTML = "shareable link to this post";
@@ -634,26 +639,7 @@ var main;
             function(x){return([-1, x, 0, 0, 0])}),
                         noncer, sid,
                         comments_div, true, show_posts_in_batches_of);
-        if(post.parent === 0){
-            //no parent to display
-        } else {
-            var parent_button =
-                header_button(
-                    "view comment's parent",
-                    async function(){
-                        parent_post =
-                            await post_loader(
-                                noncer, sid,
-                                post.parent);
-                        load_post_page(
-                            parent_post,
-                            noncer, sid);
-                    });
-            make_comment_div.appendChild(
-                parent_button);
-            make_comment_div.appendChild(
-                span_dash());
-        };
+
 
         var upvote_button =
             header_button(
@@ -720,6 +706,24 @@ var main;
         topdiv.appendChild(post_div);
         topdiv.appendChild(make_comment_div);
         topdiv.appendChild(comments_div);
+    };
+    async function comment_parent_chain(post, noncer, sid, n){
+        if(n === 0){
+            return([]);
+        } else if(!post.pid){
+            console.log(JSON.stringify(post));
+            return([]);
+        } else if(!post.parent ||
+                  (post.parent === 0)){
+            return([post.pid]);
+        } else {
+            var parent = await post_loader(
+                noncer, sid,
+                post.parent);
+            var x = await comment_parent_chain(
+                parent, noncer, sid, n - 1);
+            return([post.pid].concat(x));
+        }
     };
     async function vote(
         pid, noncer, sid, direction){
