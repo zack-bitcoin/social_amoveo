@@ -64,10 +64,10 @@ notification_limit() ->
          coins_in_dms = 0,
          verified = false,
          following = [], %account ids
-         sent_unread_dms = [], %mid
-         sent_read_dms = [],
-         received_unread_dms = [],
-         received_read_dms = [],
+         sent_unread_dms = [], %{To, mid}
+         sent_read_dms = [],%{To, mid}
+         received_unread_dms = [],%{from, mid}
+         received_read_dms = [],%{from, mid}
          delegated_to = [],%{account id, balance} 
          delegated_by = [], %{account id, balance} they delegate to us.
          posts = [], %{post_id, timestamp, upvotes, downvotes} posts that we authored, in chronological order, recent posts first.
@@ -188,14 +188,14 @@ handle_cast({send_dm, From, To, MID}, X) ->
         {{ok, F}, {ok, T}} ->
             F2 = F#acc{
                    sent_unread_dms = 
-                       [MID|F#acc.sent_unread_dms],
+                       [{To, MID}|F#acc.sent_unread_dms],
                    coins_in_dms =
                        F#acc.coins_in_dms +
                        settings:dm_cost()
                   },
             T2 = T#acc{
                    received_unread_dms = 
-                       [MID|T#acc.received_unread_dms]
+                       [{From, MID}|T#acc.received_unread_dms]
                   },
             ets_write(From, F2),
             ets_write(To, T2)
@@ -211,7 +211,8 @@ handle_cast({mark_read_dm, From, To, MID}, X) ->
                 {ok, Unread} ->
                     F2 = F#acc{
                            sent_read_dms = 
-                               [MID|F#acc.sent_read_dms],
+                               [{To, MID}|
+                                F#acc.sent_read_dms],
                            sent_unread_dms = Unread,
                            coins_in_dms = 
                                F#acc.coins_in_dms -
@@ -229,7 +230,7 @@ handle_cast({mark_read_dm, From, To, MID}, X) ->
                     T2 = T#acc{
                            received_unread_dms = Unread2,
                            received_read_dms = 
-                               [MID|T#acc.received_read_dms],
+                               [{From, MID}|T#acc.received_read_dms],
                            coins_in_dms = 
                                T#acc.coins_in_dms +
                                settings:dm_cost()
@@ -588,7 +589,7 @@ handle_call({delegate_new, AID, Coins,
              CoinHours, NewPub, Height}, 
             _From, Top) -> 
     %for the case where we are creating an account that doesn't exist in our database yet.
-    case ets_read(AID) of
+    case balance_read(AID) of
         error -> {reply, {error, <<"your account does not exist">>}, 
                   Top};
         {ok, A1} -> 
@@ -601,6 +602,8 @@ handle_call({delegate_new, AID, Coins,
                     {reply, {error, <<"you don't have that many coin-hours to spend">>}, 
                      Top};
                 CoinsA1 < Coins ->
+                    %io:fwrite({CoinsA1, Coins}),
+                    %{-375680, 2000}
                     {reply, {error, <<"you don't have that many coins to delegate">>},
                      Top};
                 true ->
@@ -933,7 +936,7 @@ remove_mid(MID, L) ->
     rm2(MID, L, []).
 rm2(_MID, [], _R) ->
     error;
-rm2(MID, [MID|T], R) ->
+rm2(MID, [{_, MID}|T], R) ->
     {ok, lists:reverse(R) ++ T};
 rm2(MID, [A|T], R) ->
     rm2(MID, T, [A|R]).
@@ -1066,7 +1069,7 @@ repossess_RR_msgs(ID, A, Amount) ->
     case RR of
         [] ->
             repossess_SU_msgs(ID, A, Amount);
-        [MID|T] ->
+        [{Sender, MID}|T] ->
             DM = dms:read(MID),
             Sender = dms:from(DM),
             Lockup = dms:lockup(DM),
@@ -1108,7 +1111,7 @@ repossess_SU_msgs(ID, A, Amount) ->
     case SU of
         [] ->
             repossess_posts(ID, A, Amount);
-         [MID|T] ->
+         [{Recipient, MID}|T] ->
             DM = dms:read(MID),
             Recipient = dms:to(DM),
             Lockup = dms:lockup(DM),
@@ -1276,7 +1279,7 @@ test(1) ->
     update_nonce(AID1, 2),
     change_coin_hours(AID1, 12000),
    
-    AID2 = delegate_new(AID1, 150, 0, password),
+    AID2 = delegate_new(AID1, 150, 0, pubkey),
     change_coin_hours(AID2, 15000),
 
     make_post(AID1, 4),
@@ -1327,13 +1330,15 @@ test(1) ->
 test(2) ->
     %try triggering the repossession mechanism.
     AID1 = new_account(0),
-    update_veo_balance(AID1, 12000),
-    change_coin_hours(AID1, 13000),
+    update_veo_balance(AID1, 1200000),
+    change_coin_hours(AID1, 130000),
     make_post(AID1, 1),
     make_vote(AID1, 1, 5000, up),
     
 
-    AID2 = delegate_new(AID1, 2000, 2000, password),
+    AID2 = delegate_new(AID1, 2000, 2000, pubkey),
+
+    timer:sleep(100),
     
     follow(AID2, AID1),
     send_dm(AID1, AID2, 1),
