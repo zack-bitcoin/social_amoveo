@@ -110,7 +110,6 @@ handle_info(_, X) -> {noreply, X}.
 
 handle_cast({delegate, AID, To, Amount}, Top) -> 
     %the account we are delegating to already exists.
-    true = Amount > 0,
     case ets_read(AID) of
         error -> ok;
         {ok, A1} ->
@@ -160,7 +159,7 @@ handle_cast({undelegate, From, To}, X) ->
                 error -> ok;
                 {ok, A3} ->
                     A4 = A3#acc{
-                           delegated = delegated +
+                           delegated = A#acc.delegated +
                                Amount,
                            delegated_by = 
                                remove_delegated(
@@ -704,6 +703,7 @@ update_nonce(AID, Nonce) ->
                     {update_nonce, AID, Nonce}).
 delegate(From, To, Amount) 
   when is_integer(To) and is_integer(Amount) ->
+    true = (Amount > 0),
     gen_server:cast(
       ?MODULE, 
       {delegate, From, To, Amount}).

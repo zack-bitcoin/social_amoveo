@@ -55,17 +55,26 @@ doit({balance, _, _, _, Pub}, From) ->
 doit({x, _, _, _, 0, Coins, CoinHours, Pub}, 
      From) ->
     %send coins and coin-hours
-    Pub2 = base64:encode(Pub),
     ok = accounts:charge(
            From, settings:api_cost()),
     F = fun(ID3) ->
-                accounts:change_coin_hours(
-                  ID3, CoinHours),
-                accounts:delegate(From, ID3, Coins)
+                if
+                    (CoinHours > 0) ->
+                        accounts:change_coin_hours(
+                          ID3, CoinHours);
+                    true -> ok
+                end,
+                if
+                    (Coins > 0) ->
+                        accounts:delegate(
+                          From, ID3, Coins);
+                    true -> ok
+                end
         end,
     if
-        is_integer(Pub2) -> F(Pub2);
+        is_integer(Pub) -> F(Pub);
         true -> 
+            Pub2 = base64:encode(Pub),
             case pubkeys:read(Pub2) of
                 error -> 
                     io:fwrite("creating new account\n"),
@@ -253,18 +262,10 @@ doit({x, _, _, _, 19, AID}, From)
     accounts:unfollow(From, AID);
 doit({x, _, _, _, 20, AID}, From) ->
 %* list of who delegates to you.
-    case accounts:balance_read(AID) of
-        error -> {error, <<"account does not exist">>};
-        {ok, A} ->
-            {ok, accounts:delegated_by(A)}
-    end;
+    {ok, accounts:delegated_by(AID)};
 doit({x, _, _, _, 21, AID}, From) ->
 %* list of who you delegate to.
-    case accounts:balance_read(AID) of
-        error -> {error, <<"account does not exist">>};
-        {ok, A} ->
-            {ok, accounts:delegated_to(A)}
-    end;
+    {ok, accounts:delegated_to(AID)};
 doit({x, _, _, _, 22, MID}, AID) ->
     %delete a dm. free.
     case accounts:balance_read(AID) of

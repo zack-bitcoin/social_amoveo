@@ -241,8 +241,6 @@ var main;
                     "comment notifications";
             });
     div.appendChild(notifications_button);
-
-    
     div.appendChild(br());
 
     var topdiv = document.createElement("div");
@@ -385,6 +383,20 @@ var main;
                 });
         my_account_div.appendChild(following_link);
         my_account_div.appendChild(br());
+        var delegating_link =
+            header_button(
+                "delegating",
+                async function(){
+                    var delegating_div = await
+                    delegating_div_maker(
+                        sid, my_nonce);
+                    clear_page();
+                    topdiv.appendChild(
+                        delegating_div);
+                });
+        my_account_div.appendChild(
+            delegating_link);
+        my_account_div.appendChild(br());
         var pids =
             await rpc.apost(["top", my_nonce.id]);
         pids = pids.slice(1);
@@ -516,28 +528,31 @@ var main;
 
             d.appendChild(author_link);
             s = s
-                .concat("author balance:")
-                .concat(s2c(acc.coins))
+                .concat(" author balance:")
+                .concat(s2c(acc.coins).toFixed(2))
                 .concat(" ");
         }
         if(post.text){
-        s = ""
-            .concat("<span style=\"font-size:130%\">")
-            .concat(post.text)
-            .concat("</span>")
-            .concat("<br/>")
-            .concat(s)
-            .concat("upvotes:")
-            .concat(s2c(post.upvotes))
-            .concat(" downvotes:")
-            .concat(s2c(post.downvotes));
+            s = ""
+                .concat("<span style=\"font-size:130%\">")
+                .concat(post.text)
+                .concat("</span>")
+                .concat("<br/>")
+                .concat("comments:")
+                .concat(post.comments.length)
+                .concat(" upvotes:")
+                .concat(s2c(post.upvotes).toFixed(2))
+                .concat(" downvotes:")
+                .concat(s2c(post.downvotes).toFixed(2))
+                .concat(s)
+            ;
             var post_p = document.createElement("span");
             post_p.className = "clickable";
-        post_p.onclick = function(){
-            load_post_page(post, noncer, sid);
-            return(0);
-        };
-        post_p.innerHTML = s;
+            post_p.onclick = function(){
+                load_post_page(post, noncer, sid);
+                return(0);
+            };
+            post_p.innerHTML = s;
             d.appendChild(post_p);
         }
         var ts = post.server_timestamp;
@@ -546,7 +561,7 @@ var main;
 
         var date_span =
             document.createElement("span");
-        date_span.innerHTML = " date:"
+        date_span.innerHTML = " date: "
             .concat(date.toLocaleString());
         d.appendChild(date_span);
 
@@ -777,7 +792,9 @@ var main;
             div.innerHTML =
                 "<h3>not following anyone</h3>";
         } else {
-            following_div_maker2(r, sid, id, noncer, div, show_posts_in_batches_of);
+            following_div_maker2(
+                r, sid, id, noncer, div,
+                show_posts_in_batches_of);
         };
         return(div);
     };
@@ -812,6 +829,90 @@ var main;
         div.appendChild(link);
         div.appendChild(br());
         return(following_div_maker2(
+            accs.slice(1), sid, aid,
+            noncer, div, n-1));
+    };
+    async function delegating_div_maker(sid, noncer){
+        var div = document.createElement("div");
+        var tx = ["x", keys.pub(),
+                  noncer.check(), sid, 21,
+                  noncer.id];
+        console.log(JSON.stringify(tx));
+        var stx = keys.sign(tx);
+        var r = await rpc.signed(stx);
+        r = r.slice(1);
+        r = r.map(function(x)
+                  {return(x.slice(1));});
+        console.log(JSON.stringify(r));
+        if(r.length === 0){
+            div.innerHTML =
+                "<h3>not delegating to anyone</h3>";
+        } else {
+            delegating_div_maker2(
+                r, sid, noncer.id, noncer, div,
+                show_posts_in_batches_of);
+        };
+        return(div);
+
+    };
+    async function delegating_div_maker2(
+        accs, sid, aid, noncer, div, n
+    ){
+        if(accs.length === 0){
+            return(0);
+        };
+        if(n === 0){
+            var load_more_button =
+                header_button(
+                    "load more",
+                    function(){
+                        lowdiv.innerHTML = "";
+                        delegating_div_maker2(
+                            accs, sid, aid,
+                            noncer, div, show_posts_in_batches_of);
+                    });
+            lowdiv.appendChild(load_more_button);
+            return(0);
+        };
+        console.log(JSON.stringify(accs));
+        var aid = accs[0][0];
+        var bal = accs[0][1];
+        var acc = await account_loader(
+            noncer, sid, aid);
+
+        var s = document.createElement("span");
+        s.innerHTML = "user: "
+            .concat(acc.username)
+            .concat(" amount: ")
+            .concat(s2c(bal).toFixed(2))
+            .concat(" ")
+        ;
+
+        div.appendChild(s);
+
+        var undelegate = header_button(
+            "undelegate",
+            async function(){
+                //div.innerHTML = "";
+                var tx = ["x", keys.pub(),
+                          noncer.check(), sid, 26,
+                          aid];
+                var stx = keys.sign(tx);
+                await rpc.signed(stx);
+                delete accounts_memoized[my_nonce.id];
+                var div2 = await delegating_div_maker(sid, noncer);
+                clear_page();
+                topdiv.appendChild(div2);
+                
+            });
+        div.appendChild(undelegate);
+        div.appendChild(br());
+        
+        console.log(JSON.stringify(acc));
+        console.log(JSON.stringify(bal));
+
+
+        return(delegating_div_maker2(
             accs.slice(1), sid, aid,
             noncer, div, n-1));
     };

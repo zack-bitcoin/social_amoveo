@@ -47,30 +47,8 @@ async function account_div_maker(
             if(b) { followers = followers
                     .concat([aid])};
         }));
-        if(!(followers.length === 0)){
-            //var t = "followed by accounts that you follow: ";
-            var s = document.createElement("span");
-            s.innerHTML = "followed by accounts that you follow: ";
-            d.appendChild(s);
-            await Promise.all(followers.map(
-                async function(aid){
-                    var acc = await account_loader(
-                        noncer, sid, aid,
-                        "cached");
-                    var button = header_button(
-                        acc.username,
-                        function(){
-                            main.load_account_page(
-                                acc, noncer, sid)
-                        });
-                    d.appendChild(button);
-                    var t = document.createElement("span");
-                    t.innerHTML = ", ";
-                    d.appendChild(t);
-                }));
-            d.appendChild(br());
-        }
 
+        
         if(noncer && (!(id === noncer.id))){
             if(following.check(them.id)){
                 var unfollow_button = header_button(
@@ -111,7 +89,72 @@ async function account_div_maker(
                     });
                 d.appendChild(follow_button);
             };
+            d.appendChild(br());
         }
+        if(!(followers.length === 0)){
+            //var t = "followed by accounts that you follow: ";
+            var s = document.createElement("span");
+            s.innerHTML = "followed by accounts that you follow: ";
+            d.appendChild(s);
+            await Promise.all(followers.map(
+                async function(aid){
+                    var acc = await account_loader(
+                        noncer, sid, aid,
+                        "cached");
+                    var button = header_button(
+                        acc.username,
+                        function(){
+                            main.load_account_page(
+                                acc, noncer, sid)
+                        });
+                    d.appendChild(button);
+                    var t = document.createElement("span");
+                    t.innerHTML = ", ";
+                    d.appendChild(t);
+                }));
+            d.appendChild(br());
+        }
+        
+        var spend_amount =
+            text_input("amount: ", d);
+        var spend_ch_button =
+            button_maker2(
+                "send them coin hours",
+                async function(){
+                    var tx = ["x", keys.pub(),
+                              noncer.check(),
+                              sid, 0, 0,
+                              c2s(spend_amount),
+                              them.id];
+                    var stx = keys.sign(tx);
+                    await rpc.signed(stx);
+                    delete accounts_memoized[noncer.id];
+                    delete accounts_memoized[them.id];
+                    d.innerHTML = "";
+                    account_div_maker(
+                        pub, id, noncer, sid, d);
+                });
+        var delegate_button =
+            button_maker2(
+                "delegate coins to them",
+                async function(){
+                    var tx = ["x", keys.pub(),
+                              noncer.check(),
+                              sid, 0,
+                              c2s(spend_amount),
+                              0,
+                              them.id];
+                    var stx = keys.sign(tx);
+                    await rpc.signed(stx);
+                    delete accounts_memoized[noncer.id];
+                    delete accounts_memoized[them.id];
+                    d.innerHTML = "";
+                    account_div_maker(
+                        pub, id, noncer, sid, d);
+                });
+        d.appendChild(spend_ch_button);
+        d.appendChild(delegate_button);
+        
         
         return(d);
     };
