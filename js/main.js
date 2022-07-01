@@ -1116,7 +1116,7 @@ var main;
             return(b[0] - a[0])});
         var send_div = await send_dm_div_maker(acc, noncer, sid, function(msg){
             var s = middiv.innerHTML;
-            s = "<span style=\"color:#005400;\">"
+            s = "<span style=\"color:#007400;\">"
                 .concat(msg)
                 .concat("</span><br>")
                 .concat(s);
@@ -1125,6 +1125,13 @@ var main;
             console.log("todo. sending a message should delete our oldest message, if we have too many existing messages.");
         });
         topdiv.appendChild(send_div);
+        var unlock_all = header_button(
+            "unlock all",
+            function(){
+                unlock_dms(dms2, noncer, sid);
+                unlock_all.innerHTML = "done";
+            });
+        topdiv.appendChild(unlock_all);
         await conversation_messages(acc, dms2, noncer, sid, show_posts_in_batches_of);
     };
     async function conversation_messages
@@ -1167,7 +1174,7 @@ var main;
         var p = document.createElement("span");
         var s = "";
         if(dm.from === noncer.id){
-            p.style.color = "#005400";
+            p.style.color = "#007400";
         } else {
             s = 
                 (s2c(dm.lockup)
