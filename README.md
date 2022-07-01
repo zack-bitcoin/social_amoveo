@@ -1,4 +1,4 @@
-social_amoveo
+Social Amoveo
 =====
 
 Clicking "im not a robot" isnt going to work forever. Robots will learn to click like us.
@@ -19,14 +19,18 @@ coin-hours are a currency. you can use them as collateral. You can spend them. S
 Having coin-hours means we can use crypto-economics to secure our website. So we can have crypto-economic guarantees about how much hard drive space or cpu or bandwidth could be consumed by operating the website.
 
 This makes it cheaper to run the website, because you know exactly how much memory and cpu you could need. You don't need to buy extra as a buffer.
-It makes it secure against many kinds of attacks, because there it is impossible for the attacker to use more than their resource limit.
+It makes it secure against many kinds of attacks, because it is impossible for the attacker to use more than their resource limit.
 
 Coin-hours are more scalable than cryptocurrency
 =========
 
 Coin-hours are 100% off-chain. Using them as a spam prevention mechanism doesn't require anything to happen on-chain.
 
-So with coin-hours, we never pay any fees, and we never need to wait for any confirmations.
+A cryptocurrency on a blockchain can only have like 20 transactions per second. With coin-hours, balances can change as many times per second as your server's database can handle.
+
+With coin-hours, we never pay any transaction fees, and we never need to wait for any confirmations.
+
+With coin-hours, it is technically free to use your website.
 
 The website is as fast as any other centralized website.
 
