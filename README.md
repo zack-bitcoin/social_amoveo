@@ -2,6 +2,7 @@ social_amoveo
 =====
 
 [Here is a live version to try it out](http://159.223.201.207:8095/home.html). It is free to use, but you need to own VEO, the currency from [Amoveo](https://github.com/zack-bitcoin/amoveo) in order to participate. Or, someone who has VEO can give you access.
+You can read the public posts without needing to own veo.
 
 Uses coin-hours from Amoveo to meter access to a forum.
 
