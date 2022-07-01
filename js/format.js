@@ -609,7 +609,24 @@ function header_button(text, f){
     x.className = "clickable";
     return(x);
 }
+function span_dash(){
+    var x = document.createElement("span");
+    x.innerHTML = " - ";
+    return(x);
+};
 
+/*
+function encryption_test(){
+    var keys1 = keys_function1(false);
+    var keys2 = keys_function1(false);
+
+    var msg = "abc";
+    var emsg = keys1.encrypt([1,2,3, "abc"], keys2.pub());
+    var msg2 = keys2.decrypt(emsg);
+    return(msg2);
+}
+
+*/
 
 
 

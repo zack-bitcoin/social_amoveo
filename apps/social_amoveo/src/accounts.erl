@@ -30,11 +30,14 @@
          post_voted/4, notify/2,
          notifications/1, 
          notifications_counter/1, 
+         dms_counter/1, 
          unseen_notifications/1, 
+         unseen_dms/1, 
          %zero_unseen_notifications/1,
          %maybe_remove_notification/1,
 
          notification_limit/0,
+         new_balance/4,
 
          pubkey/1,nonce/1,
 
@@ -195,7 +198,12 @@ handle_cast({send_dm, From, To, MID}, X) ->
                   },
             T2 = T#acc{
                    received_unread_dms = 
-                       [{From, MID}|T#acc.received_unread_dms]
+                       [{From, MID}
+                        |T#acc.received_unread_dms],
+                   unseen_dms = 
+                       T#acc.unseen_dms + 1,
+                   dms_counter = 
+                       T#acc.dms_counter + 1
                   },
             ets_write(From, F2),
             ets_write(To, T2)
@@ -230,7 +238,7 @@ handle_cast({mark_read_dm, From, To, MID}, X) ->
                     T2 = T#acc{
                            received_unread_dms = Unread2,
                            received_read_dms = 
-                               [{From, MID}|T#acc.received_read_dms],
+                               [{From, MID}|T#acc.received_read_dms],%sometimes this from is wrong.
                            coins_in_dms = 
                                T#acc.coins_in_dms +
                                settings:dm_cost()
@@ -555,6 +563,14 @@ handle_cast({zero_unseen_notifications, AID}, X) ->
         error -> ok
     end,
     {noreply, X};
+handle_cast({zero_unseen_dms, AID}, X) ->
+    case ets_read(AID) of
+        {ok, A} -> 
+            A2 = A#acc{unseen_dms = 0},
+            ets_write(AID, A2);
+        error -> ok
+    end,
+    {noreply, X};
 handle_cast({remove_all_posts, AID}, X) -> 
     case ets_read(AID) of
         error -> ok;
@@ -814,6 +830,13 @@ unseen_notifications(AID) ->
             {error, <<"account doesn't exist">>};
         {ok, A} -> A#acc.unseen_notifications
     end.
+unseen_dms(AID) ->
+    case ets_read(AID) of
+        error -> 
+            {error, <<"account doesn't exist">>};
+        {ok, A} -> A#acc.unseen_dms
+    end.
+    
     
     
     
@@ -828,7 +851,10 @@ dms(AID) ->
     case ets_read(AID) of
         error -> 
             {error, <<"account doesn't exist">>};
-        {ok, A} -> {A#acc.sent_unread_dms,
+        {ok, A} -> 
+            gen_server:cast(
+              ?MODULE, {zero_unseen_dms, AID}),
+            {A#acc.sent_unread_dms,
                     A#acc.sent_read_dms,
                     A#acc.received_unread_dms,
                     A#acc.received_read_dms}
@@ -863,7 +889,9 @@ notifications(AID) ->
             {error, 
              <<"account does not exist">>};
         {ok, A} -> 
-            gen_server:cast(?MODULE, {zero_unseen_notifications, AID}),
+            gen_server:cast(
+              ?MODULE, 
+              {zero_unseen_notifications, AID}),
             A#acc.notifications
     end.
 notifications_counter(AID) ->
@@ -874,6 +902,15 @@ notifications_counter(AID) ->
         {ok, A} -> 
             A#acc.notifications_counter
     end.
+dms_counter(AID) ->
+    case ets_read(AID) of
+        error -> 
+            {error, 
+             <<"account does not exist">>};
+        {ok, A} -> 
+            A#acc.dms_counter
+    end.
+    
     
 
     
@@ -1071,6 +1108,15 @@ repossess_RR_msgs(ID, A, Amount) ->
             repossess_SU_msgs(ID, A, Amount);
         [{Sender, MID}|T] ->
             DM = dms:read(MID),
+            case DM of
+                {error, _} ->
+                    A3 = A#acc{
+                           received_read_dms = T
+                          },
+                    ets_write(ID, A3),
+                    repossess_RR_msgs(
+                      ID, A3, Amount);
+                _ ->
             Sender = dms:from(DM),
             Lockup = dms:lockup(DM),
             Lockup2 = 
@@ -1102,6 +1148,7 @@ repossess_RR_msgs(ID, A, Amount) ->
                     ets_write(Sender, A4)
             end,
             repossess_RR_msgs(ID, A2, Amount)
+            end
     end.
 repossess_SU_msgs(_, _, Amount) when (Amount < 0) ->
     %now it has a positive amount of coins.
@@ -1113,6 +1160,16 @@ repossess_SU_msgs(ID, A, Amount) ->
             repossess_posts(ID, A, Amount);
          [{Recipient, MID}|T] ->
             DM = dms:read(MID),
+            case DM of
+                {error, _ } -> 
+                    A3 = A#acc{
+                           sent_unread_dms = T
+                           },
+                    ets_write(ID, A3),
+                    repossess_SU_msgs(
+                      ID, A3, Amount);
+                _ ->
+                                   
             Recipient = dms:to(DM),
             Lockup = dms:lockup(DM),
             %some of the locked coinhours expired while being locked up.
@@ -1148,6 +1205,7 @@ repossess_SU_msgs(ID, A, Amount) ->
                 true ->
                     repossess_SU_msgs(ID, A2, Amount)
             end
+    end
     end.
 repossess_posts(_, _, Amount) when (Amount < 0) ->
     %now it has a positive amount of coins.
@@ -1191,15 +1249,20 @@ block_cron() ->
     spawn(fun() -> block_scan() end),
     block_cron().
 block_scan() ->
-    X = utils:talk({height}),
-    case X of
-        {ok, Height} ->
-            %Start2 = max(0, scan_height:read()),
-            Start2 = 
-                max(0, height_tracker:check()),
-%    spawn(fun() ->
-            scan_history(Start2, Height+1);
-        _ -> ok
+    M = utils:talk({sync, 1}),
+    case M of
+        {ok, 1} ->%blockchain is synced
+            X = utils:talk({height}),
+            case X of
+                {ok, Height} ->
+                    Start2 = 
+                        max(0, height_tracker:check()),
+                    scan_history(Start2, Height+1);
+                _ -> ok
+            end;
+        _ -> 
+            timer:sleep(1000),%the blockchain is still syncing.
+            block_scan()
     end.
 scan_history(N, M) when N >= M -> ok;
 scan_history(Start, End) -> 

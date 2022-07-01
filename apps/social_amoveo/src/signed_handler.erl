@@ -174,6 +174,8 @@ doit({x, _, _, _, 9, Min}, From) ->
 doit({x, _, _, _, 10, To, Msg, CoinHours}, From) ->
 %* send a DM, with an optional coin-hour lockup. (costs more for longer messages, and if the expiration is further in the future.)
     true = is_integer(To),
+    true = is_binary(Msg),
+    false = (To == From),
     ok = accounts:charge(From, settings:api_cost() + 
                         CoinHours),
     MID = dms:send(Msg, From, To, CoinHours),
@@ -183,28 +185,33 @@ doit({x, _, _, _, 11, MID}, From) ->
 %* check DM. (costs coins, because now the data is yours to delete) (refunds coin-hours to sender based on how long until the refund)
     ok = accounts:charge(From, settings:api_cost()),
     case dms:read(MID) of
-        error ->
-            {error, <<"no message with that id">>};
-        DM ->
-            case dms:from(DM) of
-                From ->
+        {error, E} ->
+            {error, E};
+        {ok, DM} ->
+            %io:fwrite(DM1),
+            case {dms:from(DM), dms:to(DM)} of
+                {From, _} ->
+                    {ok, DM};
+                {_, From} ->
                     dms:mark_as_read(MID),
                     accounts:mark_read_dm(
-                      From, dms:to(DM), MID),
-                    {ok, dms:content(DM)};
-                _ -> {error, <<"not your message to delete">>}
+                      dms:from(DM), dms:to(DM), 
+                      MID),
+                    {ok, DM};
+                _ -> {error, <<"message was deleted">>}
             end
     end;
 doit({x, _, _, _, 12, MID, 1}, From) ->
 %* unlock DM deposit
     ok = accounts:charge(From, settings:api_cost()),
-    DM = dms:read(MID),
-    case dms:from(DM) of
+    {ok, DM} = dms:read(MID),
+    case dms:to(DM) of
         From ->
             L = dms:lockup(DM),
             TS = dms:timestamp(DM),
             L2 = accounts:new_balance(
-                   L, TS, height_tracker:check(), 0),
+                   L, TS, height_tracker:check(), 
+                   0),
             dms:unlock(MID),
             accounts:change_coin_hours(From, L2);
         _ -> {error, <<"not your message to unlock the deposit ">>}
@@ -378,6 +385,18 @@ doit({x, _, _, _, 30}, From) ->
 doit({x, _, _, _, 31, AID}, From) ->
     %votes.
     {ok, accounts:votes(AID)};
+doit({x, _, _, _, 32}, From) ->
+    %direct messages
+    {ok, accounts:dms(From)};
+doit({x, _, _, _, 33}, From) ->
+    %many unseen dms.
+    {ok, accounts:unseen_dms(From)};
+doit({x, _, _, _, 34}, From) ->
+    %dms, delayed response
+    N = accounts:dms_counter(From),
+    delayed_dms(
+      From, N, erlang:timestamp());
+
 doit(X, _) ->
     io:fwrite("signed handler doit fail"),
     io:fwrite(X),
@@ -401,6 +420,24 @@ delayed_notifications(
                     %{ok, N - N0}
                     {ok, accounts:unseen_notifications(From)}
                         %accounts:notifications(From)
+            end
+    end.
+delayed_dms(
+  From, N0, TS0) ->
+    D = timer:now_diff(
+          erlang:timestamp(), TS0) 
+        div 1000000,%in seconds
+    if
+        (D > 60) -> {ok, 0};
+        true ->
+            case accounts:dms_counter(From) of
+                {error, E} -> {error, E};
+                N0 ->
+                    timer:sleep(1000),
+                    delayed_dms(
+                      From, N0, TS0);
+                N -> 
+                    {ok, accounts:unseen_dms(From)}
             end
     end.
 

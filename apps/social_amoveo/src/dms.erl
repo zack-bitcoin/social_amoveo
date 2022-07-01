@@ -72,10 +72,12 @@ handle_cast({mark, ID}, X) ->
 handle_cast(_, X) -> {noreply, X}.
 handle_call({send, Text, From, To, Lockup}, 
             _From, Top) -> 
+    {T1, T2, _} = erlang:timestamp(),
     Msg = #x{id = Top, 
              content = Text,
              from = From,
              to = To,
+             timestamp = {T1, T2, 0},
              lockup = Lockup},
     ets:insert(?MODULE, [{Top, Msg}]),
     {reply, Top, Top+1};

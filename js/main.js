@@ -16,11 +16,6 @@ var main;
         return(x);
     }
 */
-    function span_dash(){
-        var x = document.createElement("span");
-        x.innerHTML = " - ";
-        return(x);
-    };
     function clear_page(){
         topdiv.innerHTML = "";
         middiv.innerHTML = "";
@@ -219,8 +214,6 @@ var main;
             "comment notifications",
             async function(){
                 clear_page();
-                var notifications_div =
-                    document.createElement("div");
                 var tx = ["x", keys.pub(),
                           my_nonce.check(),
                           sid, 28];
@@ -243,6 +236,58 @@ var main;
     div.appendChild(notifications_button);
     div.appendChild(br());
 
+    var dms_button =
+        header_button(
+            "inbox",
+            async function(){
+                clear_page();
+                var tx = ["x", keys.pub(),
+                          my_nonce.check(),
+                          sid, 32];
+                var stx = keys.sign(tx);
+                var r = await rpc.signed(stx);
+                var [db, db_notifications] =
+                    load_dms(r);
+                var peer_order = r2peer_order(r);
+                console.log(peer_order);
+                console.log(my_nonce.id);
+                await Promise.all(peer_order.map(
+                    async function(aid){
+                        var x = await account_loader(
+                            my_nonce, sid, aid);
+                        var n = db_notifications[aid];
+                        var link = header_button(
+                            "",
+                            async function(){
+
+                                return(conversation_page(
+                                    x, db[aid], my_nonce, sid));
+                            });
+                        if(n){
+                            link.innerHTML =
+                                "conversation with: "
+                                .concat(x.username)
+                                .concat(" +")
+                                .concat(n.toString());
+                            link.style.color = "red";
+                        } else {
+                            link.innerHTML =
+                                "conversation with: "
+                                .concat(x.username);
+                        };
+                        topdiv.appendChild(link);
+                        topdiv.appendChild(br());
+                //todo. for each peer, make a link to the conversation between us and that peer. include their username in the link.
+                        console.log(JSON.stringify(x));
+                        return(x);
+                    }));
+                dms_button.style.color = "blue";
+                dms_button.innerHTML = "inbox";
+            });
+    div.appendChild(dms_button);
+    div.appendChild(br());
+    
+
     var topdiv = document.createElement("div");
     var middiv = document.createElement("div");
     var lowdiv = document.createElement("div");
@@ -262,7 +307,8 @@ var main;
     var my_posts_div = div_ele();
     var top_posts_div = div_ele();
 
-    var post_text = document.createElement("textarea");
+    var post_text =
+        document.createElement("textarea");
     post_text.rows = 4;
     post_text.cols =
         Math.min(window.innerWidth / 10,
@@ -406,6 +452,27 @@ var main;
             false, show_posts_in_batches_of);
     };
 
+    async function dms_notifications_cron(pub){
+        if(!(keys.pub() === pub)){
+            return(0);
+        };
+        var tx = ["x", keys.pub(),
+                  my_nonce.check(),
+                  sid, 34];
+        var stx = keys.sign(tx);
+        var r = await rpc.signed(stx);
+        if(!(keys.pub() === tx[1])){
+            return(0);
+        };
+        if(r > 0){
+            dms_button.style.color =
+                "red";
+            dms_button.innerHTML =
+                "inbox +".concat(r);
+        }
+        dms_notifications_cron(pub);
+    };
+    
     async function notifications_cron(pub){
         //console.log("notifications cron\n");
         if(!(keys.pub() === pub)){
@@ -438,7 +505,6 @@ var main;
         refresh_my_page();
         await following.load(sid, my_nonce);
         your_account_button.click();
-
         var tx = ["x", keys.pub(),
                   my_nonce.check(),
                   sid, 29];
@@ -452,8 +518,18 @@ var main;
             notifications_button.innerHTML =
                 "comment notifications +".concat(r);
         }
-
+        var tx = ["x", keys.pub(),
+                  my_nonce.check(),
+                  sid, 33];
+        var stx = keys.sign(tx);
+        var r = await rpc.signed(stx);
+        if(r > 0){
+            dms_button.style.color = "red";
+            dms_button.innerHTML =
+                "inbox +".concat(r);
+        }
         notifications_cron(keys.pub());
+        dms_notifications_cron(keys.pub());
     })
 
     async function reload_top_posts(){
@@ -949,8 +1025,227 @@ var main;
                            q.concat([v[0]])));
         }
     };
+    function r2peer_order(r){
+        //make a list of peers, along with the highest mid associated to each peer. Sort the list of peers from high to low mid.
+        var r2 = [];
+        r2 = r2
+            .concat(r[1].slice(1))
+            .concat(r[2].slice(1))
+            .concat(r[3].slice(1))
+            .concat(r[4].slice(1));
+        var peers = {};
+        r2.map(function(x){
+            var from = x[1];
+            var mid = x[2];
+            if(!(peers[from]) ||
+               (peers[from] < mid)){
+                   peers[from] = mid;
+            };
+        });
+        var pk = Object.keys(peers);
+        var pk2 = pk.sort(function(a, b){
+            return(peers[b] - peers[a])});
+        pk2 = pk.map(function(x){
+            return(parseInt(x))});
+        return(pk2);
+    };
+    function load_dms(r){
+        var received_unread =
+            r[3].slice(1);
+        var received_read =
+            r[4].slice(1);
+        var sent_unread =
+            r[1].slice(1);
+        var sent_read =
+            r[2].slice(1);
+        var db = {};
+        var db_notifications = {};
+        db = load_dms2(db, 0, received_unread);
+        db = load_dms2(db, 1, received_read);
+        db = load_dms2(db, 2, sent_unread);
+        db = load_dms2(db, 3, sent_read);
+
+        db_notifications = load_notifications(
+            db_notifications, received_unread);
+
+        return([db, db_notifications]);
+    };
+    function load_notifications(db, l){
+        if(l.length  === 0){
+            return(db);
+        };
+        var from = l[0][1];
+        var mid = l[0][2];
+        if(!(db[from])){
+            db[from] = 1;
+        } else {
+            db[from] += 1;
+        };
+        return(load_notifications(db, l.slice(1)));
+    };
+    function load_dms2(db, type, l){
+        if(l.length === 0){
+            return(db);
+        }
+        var from = l[0][1];
+        var mid = l[0][2];
+        if(!(db[from])){
+            db[from] = [];
+        }
+        db[from] = merge_post(db[from], mid, type);
+        return(load_dms2(db, type, l.slice(1)));
+    };
+    function merge_post(l, mid, type){
+        if(l.length === 0){
+            return([[mid, type]]);
+        } else {
+            mid2 = l[0];
+            if(mid2 > mid){
+                return(l[0].concat(
+                    merge_post(l.slice(1),
+                               mid, type)));
+            } else {
+                return([[mid, type]].concat(l));
+            };
+        }
+    };
+    async function conversation_page(acc, dms, noncer, sid){
+        clear_page();
+        //var dms2 = dms.reverse();
+        var dms2 = dms.sort(function(a, b){
+            return(b[0] - a[0])});
+        var send_div = await send_dm_div_maker(acc, noncer, sid, function(msg){
+            var s = middiv.innerHTML;
+            s = "<span style=\"color:#005400;\">"
+                .concat(msg)
+                .concat("</span><br>")
+                .concat(s);
+            middiv.innerHTML = s;
+            unlock_dms(dms2, noncer, sid);
+            console.log("todo. sending a message should delete our oldest message, if we have too many existing messages.");
+        });
+        topdiv.appendChild(send_div);
+        await conversation_messages(acc, dms2, noncer, sid, show_posts_in_batches_of);
+    };
+    async function conversation_messages
+    (acc, dms2, noncer, sid, n){
+        if(dms2.length === 0){
+            return(0);
+        };
+        if(n === 0){
+            //todo show more button.
+            var load_more_button =
+                header_button(
+                    "load more conversation",
+                    function(){
+                        lowdiv.innerHTML = "";
+                        conversation_messages(
+                            acc, dms2, noncer, sid,
+                            show_posts_in_batches_of);
+                    });
+            lowdiv.appendChild(load_more_button);
+            return(0);
+        };
+        var x = dms2[0];
+        var mid = x[0];
+        var type = x[1];
+        if(type === 0){
+            console.log("received unread");
+        } else if(type === 1){
+            console.log("received read");
+        } else if(type === 2){
+            console.log("sent unread");
+        } else if(type === 3){
+            console.log("sent read");
+        };
+        var dm = await dm_loader(mid, noncer, sid);
+        if(dm === "deleted"){
+            console.log("deleted message");
+            return(conversation_messages(
+                acc, dms2.slice(1), noncer, sid, n));
+        }
+        var p = document.createElement("span");
+        var s = "";
+        if(dm.from === noncer.id){
+            p.style.color = "#005400";
+        } else {
+            s = 
+                (s2c(dm.lockup)
+                 .toFixed(0).toString())
+                .concat(" - ");
+        }
+        p.innerHTML = s.concat(dm.content);
+        middiv.appendChild(p);
+        middiv.appendChild(br());
+            
+        return(conversation_messages(
+            acc, dms2.slice(1), noncer, sid, n-1));
+        //todo load the 10 most recent messages,
+    };
+    function decode_dm(r){
+            //{x, id, content, read, from, to, lockup, timestamp}
+        return({id: r[1],
+                content: atob(r[2]),
+                read: r[3],
+                from: r[4],
+                to: r[5],
+                lockup: r[6],
+                timestamp: r[7]});
+    };
+
+    var memoized_dms = {};
+    async function dm_loader
+    (mid, noncer, sid, type){
+        var dm = memoized_dms[mid];
+        if(!(dm)){
+            return(await dm_loader2(
+                mid, noncer, sid));
+        };
+        return(dm.val);
+    };
+    async function dm_loader2(mid, noncer, sid){
+
+        var tx = ["x", keys.pub(),
+                  noncer.check(), sid,
+                  11, mid];
+        var stx = keys.sign(tx);
+        var r = await rpc.signed(stx);
+        if(r[0] === -6){
+            return("deleted");
+        }
+        var dm = decode_dm(r);
+        memoized_dms[mid] = {
+            timestamp: timestamp(),
+            val: dm};
+        return(dm);
+    };
+    async function unlock_dms(dms, noncer, sid){
+        if(dms.length === 0){
+            return(0);
+        };
+        var mid = dms[0][0];
+        var type = dms[0][1];
+        if(type > 1){
+            return(unlock_dms(
+                dms.slice(1), noncer, sid));
+        };
+        var dm = await dm_loader(mid, noncer, sid);
+        if(dm.lockup > 0){
+            var tx = ["x", keys.pub(),
+                      noncer.check(), sid,
+                      12, mid, 1];
+            var stx = keys.sign(tx);
+            var r = await rpc.signed(stx);
+            delete memoized_dms[mid];
+        };
+        return(unlock_dms(
+            dms.slice(1), noncer, sid));
+    };
+
 
     main = {
-        load_account_page: load_account_page
+        load_account_page: load_account_page,
+        clear_page: clear_page,
+        topdiv: function(){return(topdiv)}
     };
 })();

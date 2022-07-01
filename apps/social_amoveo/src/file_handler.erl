@@ -38,6 +38,9 @@ handle(Req, _) ->
 	       <<"/account_div_maker.js">> -> true;
 	       <<"/account_loader.js">> -> true;
 	       <<"/following.js">> -> true;
+	       <<"/encryption.js">> -> true;
+	       <<"/encryption_library.js">> -> true;
+	       <<"/send_dm_div_maker.js">> -> true;
                
                X -> 
                    io:fwrite("ext file handler block access to: "),

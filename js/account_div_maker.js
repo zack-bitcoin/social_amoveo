@@ -89,6 +89,19 @@ async function account_div_maker(
                     });
                 d.appendChild(follow_button);
             };
+            d.appendChild(span_dash());
+            var send_message_button = header_button(
+                "send message",
+                async function(){
+                    //d.innerHTML = "";
+                    main.clear_page();
+                    var send_dm_div =
+                        await send_dm_div_maker(
+                            them, noncer, sid);
+                    main.topdiv()
+                        .appendChild(send_dm_div);
+                });
+            d.appendChild(send_message_button);
             d.appendChild(br());
         }
         if(!(followers.length === 0)){
