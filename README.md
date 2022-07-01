@@ -26,14 +26,14 @@ attach to the REPL of a running program
 
 after attaching, you can shut it off
 ``` utils:off() ```
-It is important to turn it off this way, because then you don't need to re-scan the blocks when you turn it on again.
+It is important to turn it off this way, because then your changes will be saved to the hard drive. So you don't need to scan the blocks again, and posts wont get deleted.
 
 to delete the database and start a fresh server with zero accounts and zero posts.
 ``` sh clean.sh ```
 
 
 
-commands you can use after attaching.
+example commands you can use after attaching.
 ===========
 
 to give/take coins to an account:
@@ -42,3 +42,4 @@ to give/take coins to an account:
 to give/take coin-hours to an account:
 ```account:change_coin_hours(AccountID, Delta).```
 
+To learn about other commands, take a look at [the signed api](/apps/social_amoveo/src/signed_handler.erl). Seeing the definitions of the api should give context to understand what you can do.
