@@ -1,10 +1,53 @@
 social_amoveo
 =====
 
+Clicking "im not a robot" isnt going to work forever. Robots will learn to click like us.
+Doing PoW on phones isnt a feasible alternative, because of battery life.
+We should use PoS as our spam prevention mechanism. You need to own coins to use a free website.
+
+The goal of this software is to use coin-hours as the spam prevention mechanism for a simplified clone of twitter.
+
 [Here is a live version to try it out](http://159.223.201.207:8095/home.html). It is free to use, but you need to own VEO, the currency from [Amoveo](https://github.com/zack-bitcoin/amoveo) in order to participate. Or, someone who has VEO can give you access.
+
 You can read the public posts without needing to own veo.
 
-Uses coin-hours from Amoveo to meter access to a forum.
+Why use Coin-Hours?
+=========
+
+coin-hours are a currency. you can use them as collateral. You can spend them. So, using coin-hours gives all the benefits of using a cryptocurrency.
+
+Having coin-hours means we can use crypto-economics to secure our website. So we can have crypto-economic guarantees about how much hard drive space or cpu or bandwidth could be consumed by operating the website.
+
+This makes it cheaper to run the website, because you know exactly how much memory and cpu you could need. You don't need to buy extra as a buffer.
+It makes it secure against many kinds of attacks, because there it is impossible for the attacker to use more than their resource limit.
+
+Coin-hours are more scalable than cryptocurrency
+=========
+
+Coin-hours are 100% off-chain. Using them as a spam prevention mechanism doesn't require anything to happen on-chain.
+
+So with coin-hours, we never pay any fees, and we never need to wait for any confirmations.
+
+The website is as fast as any other centralized website.
+
+Coin-hours give more control to the website owner.
+===========
+
+The owner of the website can print themselves new coin-hours. They can sell coin-hours.
+
+
+Coin-hours are less liquid than cryptocurrency
+=========
+
+Cryptocurrency is not a good spam prevention mechanism because they are too liquid. If you try charging for your website using cryptocurrency, then either everything in your website is going to be crazy expensive, or else an attacker with only a few hundred dollars of cryptocurrency can overwhelm your resources and crash the website.
+
+The market cap for bitcoin is in the hundreds of billions. But looking up a tweet should cost less than $0.001.
+So if someone had just 1% of the bitcoin, they could look up trillions of tweets from the server and make it crash.
+
+With coin-hours, someone with 1% of the bitcoin would only have access to 1% of your bandwidth, and looking up a tweet would still be much less than $0.001
+
+Installing on your server, to run your own social network.
+=========
 
 In order to run this program, you need to be running an amoveo full node first. https://github.com/zack-bitcoin/amoveo
 
