@@ -40,16 +40,6 @@ Coin-hours give more control to the website owner.
 The owner of the website can print themselves new coin-hours. They can sell coin-hours.
 
 
-Coin-hours are less liquid than cryptocurrency
-=========
-
-Cryptocurrency is not a good spam prevention mechanism because they are too liquid. If you try charging for your website using cryptocurrency, then either everything in your website is going to be crazy expensive, or else an attacker with only a few hundred dollars of cryptocurrency can overwhelm your resources and crash the website.
-
-The market cap for bitcoin is in the hundreds of billions. But looking up a tweet should cost less than $0.001.
-So if someone had just 1% of the bitcoin, they could look up trillions of tweets from the server and make it crash.
-
-With coin-hours, someone with 1% of the bitcoin would only have access to 1% of your bandwidth, and looking up a tweet would still be much less than $0.001
-
 Installing on your server, to run your own social network.
 =========
 
