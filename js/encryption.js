@@ -3,54 +3,126 @@ function encryption_main() {
         return(new aesjs.ModeOfOperation.ctr(key, [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]));
     };
     function bin_enc(key,bin){
-        return Array.from(aes_ctr(key).encrypt(bin));
+        var ac = aes_ctr(key);
+        return Array.from(ac.encrypt(bin));
     };
     function bin_dec(key, bin){
-        return Array.from(aes_ctr(key).decrypt(bin));
+        var ac = aes_ctr(key);
+        return Array.from(ac.decrypt(bin));
     };
     function shared(key, pub) {
 	pub = pub.getPublic();
-        return hex2array(key.derive(pub).toString(16));
+        var k = key.derive(pub);
+        return hex2array(k.toString(16));
     }
     function hex2array(x) {
         return string_to_array(fromHex(x));
     }
+    function multi_send(m, to_pubs, fromKey){
+        var tos = to_pubs.map(function(x){
+            return(keys.ec().keyFromPublic(
+                toHex(atob(x)), "hex"));
+        });
+        var from_pub = btoa(fromHex(
+            fromKey.getPublic("hex")));
+        var entropy = shared(
+            keys.make(), fromKey);
+        var newkey = keys.make();
+        var eph_pub = hex2array(
+            newkey.getPublic("hex"));
+        var sig = btoa(array_to_string(sign(
+            btoa(array_to_string(eph_pub)),
+            fromKey)));
+        var msg = ["msg", sig, m, btoa(from_pub)];
+
+        var shared_secrets = tos.map(function(x){
+            return(shared(newkey, x));
+        });
+        var encoded_entropy = shared_secrets.map(
+            function(x){
+                var r = [];
+                for(var i = 0; i<32; i++){
+                    r[i] = (x[i] ^ entropy[i]);
+                }
+                return(btoa(array_to_string(r)));
+            });
+        var emsg = bin_enc(
+            entropy, string_to_array(
+                JSON.stringify(msg)));
+        return ["emsg", btoa(array_to_string(eph_pub)), to_pubs, encoded_entropy, btoa(array_to_string(emsg))];
+    };
+    function multi_get(emsg, my_key) {
+        var eph_pub = atob(emsg[1]);
+        var eph_key = keys.ec().keyFromPublic(toHex(eph_pub), 'hex');
+        var ss = shared(my_key, eph_key);
+        var to_pubs = emsg[2];
+        var encoded_entropy = emsg[3];
+        var encrypted = emsg[4];
+        var encoded_entropy =
+            string_to_array(atob(entropy_grab(
+                encoded_entropy, to_pubs,
+                btoa(fromHex(my_key.getPublic(
+                    "hex"))))));
+        var ss = shared(my_key, eph_key);
+        var entropy = [];
+        for(var i = 0; i<32; i++){
+            entropy[i] = (encoded_entropy[i] ^
+                          ss[i]);
+        };
+        var msg = JSON.parse(array_to_string(bin_dec(entropy, string_to_array(atob(emsg[4])))));
+        var fromkey = keys.ec().keyFromPublic(toHex(atob(atob(msg[3]))), 'hex');
+        var b = verify(emsg[1], msg[1], fromkey);
+        if (b) { return msg[2]
+        } else { throw("encryption get error");
+               };
+        //console.log(JSON.stringify([btoa(fromHex(my_key.getPublic("hex"))), to_pubs]));
+    };
+    function entropy_grab(es, tos, me){
+        if(tos[0] === me){
+            return(es[0]);
+        };
+        return(entropy_grab(
+            es.slice(1), tos.slice(1), me));
+    }
     function send(m, to_pub, fromkey) {
-        var to = keys.ec().keyFromPublic(toHex(atob(to_pub)), "hex");
+        var to = keys.ec().keyFromPublic(
+            toHex(atob(to_pub)), "hex");
         var from_pub = btoa(fromHex(fromkey.getPublic("hex")));
         var newkey = keys.make();
         var eph_pub = hex2array(newkey.getPublic("hex"));
-        var eph_priv = hex2array(newkey.getPrivate("hex"));
+        //var eph_priv = hex2array(newkey.getPrivate("hex"));
 	console.log("signing on ");
-	console.log(btoa(btoa(array_to_string(eph_pub))));
+	console.log(btoa(array_to_string(eph_pub)));
 	console.log("signing with ");
 	console.log(fromkey.getPublic("hex"));
-        var msg = ["msg", btoa(array_to_string(sign(btoa(btoa(array_to_string(eph_pub))), fromkey))), m, btoa(from_pub)];
+        var sig = btoa(array_to_string(sign(
+            btoa(array_to_string(eph_pub)),
+            fromkey)));
+        var msg = ["msg", sig, m, btoa(from_pub)];
         var ss = shared(newkey, to);
 	console.log("send message ");
 	console.log(JSON.stringify(msg));
         var emsg = bin_enc(ss, string_to_array(JSON.stringify(msg)));
-        return ["emsg", btoa(btoa(array_to_string(eph_pub))), btoa(btoa(array_to_string(emsg)))];
+        return ["emsg", btoa(array_to_string(eph_pub)), btoa(array_to_string(emsg))];
     };
     function get(emsg, my_key) {
-        var eph_pub = atob(atob(emsg[1]));
+        var eph_pub = atob(emsg[1]);
 	//console.log("get eph pub ");
 	//console.log(eph_pub);
 	//console.log(atob(emsg[1]));
         var eph_key = keys.ec().keyFromPublic(toHex(eph_pub), 'hex');
         var ss = shared(my_key, eph_key);
-        var msg = JSON.parse(array_to_string(bin_dec(ss, string_to_array(atob(atob(emsg[2]))))));
+        var msg = JSON.parse(array_to_string(bin_dec(ss, string_to_array(atob(emsg[2])))));
 	console.log("msg");
 	console.log(JSON.stringify(msg));
         var fromkey = keys.ec().keyFromPublic(toHex(atob(atob(msg[3]))), 'hex');
 	console.log("verify message received ");
 	console.log(emsg[1]);
-        //var b = verify(emsg[1], btoa(msg[1]), fromkey);
         var b = verify(emsg[1], msg[1], fromkey);
         if (b) { return msg[2]
         } else { throw("encryption get error");
         }
-    }
+    };
     function assert_eq(x, y) {
         if (!(JSON.stringify(x) == JSON.stringify(y))) {
             console.log("failed assert_eq");
@@ -85,8 +157,9 @@ function encryption_main() {
         assert_eq(bin_dec(key, eb), [1, 2, 3]);
         var fromKey = keys.make();
         var toKey = keys.make();
-        var sm = send([-6,1,2,3], btoa(fromHex(toKey.getPublic("hex"))), fromKey);
-        assert_eq(get(sm, toKey), [-6, 1, 2, 3]);
+        var message = [-6, 1,2,3];
+        var sm = send(message, btoa(fromHex(toKey.getPublic("hex"))), fromKey);
+        assert_eq(get(sm, toKey), message);
         var masterPub64 = "BLDdkEzI6L8qmIFcSdnH5pfNAjEU11S9pHXFzY4U0JMgfvIMnwMxDOA85t6DKArhzbPJ1QaNBFHO7nRguf3El3I=";
         var master = keys.ec().keyFromPublic(toHex(atob(masterPub64)), 'hex');
         console.log("encryption test passed.");
@@ -103,12 +176,22 @@ function encryption_main() {
 	return "success";
     }
     //test();
-    return {get: get, send: send, test: test, test2: test2, test_shared: test_shared};
+    function test3(){
+        var key1 = keys.make();
+        var key2 = keys.make();
+        var to1 = btoa(fromHex(
+            key1.getPublic("hex")));
+        var to2 = btoa(fromHex(
+            key2.getPublic("hex")));
+        var fromKey = keys.make();
+        var emsg = multi_send(
+            "hi", [to1, to2], fromKey);
+        return([multi_get(emsg, key1),
+                multi_get(emsg, key2),emsg]);
+    };
+    return {get: get, send: send, test: test, test2: test2, test_shared: test_shared, test3:test3};
 }
 var encryption_object = encryption_main();
-
-
-
 
 
 

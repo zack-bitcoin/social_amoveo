@@ -276,6 +276,7 @@ function keys_function1() {
 	return encryption_object.get(val, keys_internal);
     }
     return {make: new_keys,
+            make_entropy: new_keys_entropy,
             pub: pubkey_64,
             raw_sign: raw_sign,
             sign: sign_tx,

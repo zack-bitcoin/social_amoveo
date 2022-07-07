@@ -165,7 +165,8 @@ function signing_test3() {
 //signing_test4();
 function signing_test4() {
     var k = keys.make();
-    var data = [];
+    var data = [256];
+    var data2 = [0];
     var sig = btoa(array_to_string(sign(data, k)));
     console.log(verify(data, sig, k));
 }
