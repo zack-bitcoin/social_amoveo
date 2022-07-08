@@ -28,7 +28,6 @@ async function account_div_maker(
         coin_hours.innerHTML = "coin hours: ".concat(s2c(them.coin_hours));
         d.appendChild(coin_hours);
 
-        //todo. this account is followed by these people who you follow.
         function is_in(a, b){
             if(b.length === 0) {return false;}
             if(a === b[0]){return true;}

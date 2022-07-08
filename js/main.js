@@ -277,7 +277,6 @@ var main;
                         };
                         topdiv.appendChild(link);
                         topdiv.appendChild(br());
-                //todo. for each peer, make a link to the conversation between us and that peer. include their username in the link.
                         console.log(JSON.stringify(x));
                         return(x);
                     }));
@@ -453,7 +452,6 @@ var main;
     };
 
     async function dms_notifications_cron(pub){
-        console.log("dm notifications cron\n");
         if(!(keys.pub() === pub)){
             return(0);
         };
@@ -471,6 +469,7 @@ var main;
             dms_button.innerHTML =
                 "inbox +".concat(r);
         }
+        dms_notifications_cron(pub);
     };
     
     async function notifications_cron(pub){
@@ -590,7 +589,7 @@ var main;
         //console.log([noncer.id, post.author_id]);
         var author_name = acc.username;
         var s = "";
-        console.log(author_name);
+        //console.log(author_name);
         if(show_author &&
            (!(author_name === undefined))){
             var author_link = header_button(
@@ -792,7 +791,6 @@ var main;
                     load_post_page(post2, noncer, sid);
                 });
         make_comment_div.appendChild(comment_button);
-        //todo. time when this was posted.
         clear_page();
         topdiv.appendChild(post_div);
         topdiv.appendChild(make_comment_div);
@@ -1140,7 +1138,6 @@ var main;
             return(0);
         };
         if(n === 0){
-            //todo show more button.
             var load_more_button =
                 header_button(
                     "load more conversation",
@@ -1194,7 +1191,6 @@ var main;
             
         return(conversation_messages(
             acc, dms2.slice(1), noncer, sid, n-1));
-        //todo load the 10 most recent messages,
     };
     function decode_dm(r){
             //{x, id, content, read, from, to, lockup, timestamp}

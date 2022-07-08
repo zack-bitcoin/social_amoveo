@@ -1,5 +1,8 @@
 -module(signed_handler).
 -export([init/3, handle/2, terminate/3, doit/2, init/2]).
+
+-define(delay_seconds, 60).
+
 init(Req0, Opts) ->
     handle(Req0, Opts).	
 init(_Type, Req, _Opts) -> {ok, Req, no_state}.
@@ -412,7 +415,7 @@ delayed_notifications(
           erlang:timestamp(), TS0) 
         div 1000000,%in seconds
     if
-        (D > 30) -> {ok, 0};
+        (D > ?delay_seconds) -> {ok, 0};
         true ->
             case accounts:notifications_counter(From) of
                 {error, E} -> {error, E};
@@ -421,18 +424,15 @@ delayed_notifications(
                     delayed_notifications(
                       From, N0, TS0);
                 N -> 
-                    %{ok, N - N0}
                     {ok, accounts:unseen_notifications(From)}
-                        %accounts:notifications(From)
             end
     end.
-delayed_dms(
-  From, N0, TS0) ->
+delayed_dms(From, N0, TS0) ->
     D = timer:now_diff(
           erlang:timestamp(), TS0) 
         div 1000000,%in seconds
     if
-        (D > 30) -> {ok, 0};
+        (D > ?delay_seconds) -> {ok, 0};
         true ->
             case accounts:dms_counter(From) of
                 {error, E} -> {error, E};
