@@ -453,6 +453,7 @@ var main;
     };
 
     async function dms_notifications_cron(pub){
+        console.log("dm notifications cron\n");
         if(!(keys.pub() === pub)){
             return(0);
         };
@@ -470,11 +471,10 @@ var main;
             dms_button.innerHTML =
                 "inbox +".concat(r);
         }
-        dms_notifications_cron(pub);
     };
     
     async function notifications_cron(pub){
-        //console.log("notifications cron\n");
+        console.log("notifications cron\n");
         if(!(keys.pub() === pub)){
             return(0);
         };
@@ -1181,7 +1181,14 @@ var main;
                  .toFixed(0).toString())
                 .concat(" - ");
         }
-        p.innerHTML = s.concat(dm.content);
+        if(dm.content.slice(0, 8) ===
+           "[\"emsg\",") {
+            var x = JSON.parse(dm.content);
+            x = keys.multi_decrypt(x);
+            p.innerHTML = s.concat(x);
+        } else {
+            p.innerHTML = s.concat(dm.content);
+        }
         middiv.appendChild(p);
         middiv.appendChild(br());
             

@@ -291,6 +291,8 @@ function keys_function1() {
             ec: (function() { return ec; }),
             encrypt: encrypt,
             decrypt: decrypt,
+            multi_encrypt: multi_encrypt,
+            multi_decrypt: multi_decrypt,
             check_balance: check_balance,
             keys_internal: (function() {return keys_internal;}),
             update_balance:update_balance,

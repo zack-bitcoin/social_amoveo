@@ -412,7 +412,7 @@ delayed_notifications(
           erlang:timestamp(), TS0) 
         div 1000000,%in seconds
     if
-        (D > 60) -> {ok, 0};
+        (D > 30) -> {ok, 0};
         true ->
             case accounts:notifications_counter(From) of
                 {error, E} -> {error, E};
@@ -432,7 +432,7 @@ delayed_dms(
           erlang:timestamp(), TS0) 
         div 1000000,%in seconds
     if
-        (D > 60) -> {ok, 0};
+        (D > 30) -> {ok, 0};
         true ->
             case accounts:dms_counter(From) of
                 {error, E} -> {error, E};

@@ -29,6 +29,7 @@ var rpc = (function() {
                 if (this.status >= 200 && this.status < 300) {
                     resolve(JSON.parse(xmlhttp.response)[1]);
                 } else {
+                    
                     reject({
                         status: this.status,
                         statusText: xmlhttp.statusText
@@ -36,10 +37,15 @@ var rpc = (function() {
                 }
             };
             xmlhttp.onerror = function () {
-                reject({
+                console.log("rpc.js error.");
+                console.log(this.status);
+                console.log(xmlhttp.statusText);
+                resolve("error");
+                /*reject({
                     status: this.status,
                     statusText: xmlhttp.statusText
                 });
+                */
             };
             xmlhttp.send(JSON.stringify(cmd));
         });

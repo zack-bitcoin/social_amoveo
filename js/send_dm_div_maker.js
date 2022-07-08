@@ -33,13 +33,17 @@ async function send_dm_div_maker(to, noncer, sid, refresh){
                 var emsg = keys2.encrypt(
                     Message2, to.pubkey);
                 */
+                var emsg = keys.multi_encrypt(
+                    msg, [keys.pub(), to.pubkey]);
                 var tx = ["x", keys.pub(),
                           noncer.check(),
                           sid,
-                          10, to.id, btoa(msg),
+                          10, to.id,
+                          //btoa(msg),
+                          btoa(JSON.stringify(emsg)),
                         //00012345678
                           20000000000];
-                console.log(tx);
+                console.log(JSON.stringify(tx));
                 var stx = keys.sign(tx);
                 console.log(stx);
                 var r = await rpc.signed(stx);
