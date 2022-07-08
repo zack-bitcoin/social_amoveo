@@ -22,7 +22,7 @@ async function account_div_maker(
         var coins_balance =
             document.createElement("p");
         coins_balance.innerHTML =
-            "veo: ".concat(s2c(them.coins));
+            "coins: ".concat(s2c(them.coins));
         d.appendChild(coins_balance);
         var coin_hours = document.createElement("p");
         coin_hours.innerHTML = "coin hours: ".concat(s2c(them.coin_hours));

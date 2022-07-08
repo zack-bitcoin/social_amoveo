@@ -271,9 +271,17 @@ function keys_function1() {
     }
     function encrypt(val, to) {
         return encryption_object.send(val, to, keys_internal);
-    }
+    };
     function decrypt(val) {
 	return encryption_object.get(val, keys_internal);
+    };
+    function multi_encrypt(msg, recipients){
+        return(encryption_object.multi_send(
+            msg, recipients, keys_internal));
+    };
+    function multi_decrypt(emsg){
+        return(encryption_object.multi_get(
+            emsg, keys_internal));
     }
     return {make: new_keys,
             make_entropy: new_keys_entropy,

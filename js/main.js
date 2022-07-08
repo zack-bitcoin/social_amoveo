@@ -405,7 +405,7 @@ var main;
         var coins_balance =
             document.createElement("div");
         coins_balance.innerHTML =
-            "veo: ".concat(
+            "coins: ".concat(
                 s2c(account_data.coins));
         my_account_div.appendChild(coins_balance);
         var coin_hours =

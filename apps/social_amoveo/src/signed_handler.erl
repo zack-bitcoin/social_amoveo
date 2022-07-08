@@ -19,10 +19,14 @@ handle(Req, State) ->
     {ok, AID} = pubkeys:read(base64:encode(Pub)),
     {ok, Acc} =  accounts:balance_read(AID),
     PrevNonce =  accounts:nonce(Acc),
-    true = Nonce > PrevNonce,
-    D = packer:pack(doit(Tx, AID)),
-    accounts:update_nonce(AID, Nonce),
-
+    D = if
+            (Nonce =< PrevNonce) ->
+                packer:pack({error, <<"bad nonce">>});
+            true ->
+                D2 = packer:pack(doit(Tx, AID)),
+                accounts:update_nonce(AID, Nonce),
+                D2
+        end,
     %Headers=[{<<"content-type">>,<<"application/octet-stream">>},
     %{<<"Access-Control-Allow-Origin">>, <<"*">>}],
     Headers = #{<<"content-type">> => <<"application/octet-stream">>,

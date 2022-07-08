@@ -19,10 +19,6 @@ function encryption_main() {
         return string_to_array(fromHex(x));
     }
     function multi_send(m, to_pubs, fromKey){
-        var tos = to_pubs.map(function(x){
-            return(keys.ec().keyFromPublic(
-                toHex(atob(x)), "hex"));
-        });
         var from_pub = btoa(fromHex(
             fromKey.getPublic("hex")));
         var entropy = shared(
@@ -35,54 +31,62 @@ function encryption_main() {
             fromKey)));
         var msg = ["msg", sig, m, btoa(from_pub)];
 
-        var shared_secrets = tos.map(function(x){
-            return(shared(newkey, x));
-        });
-        var encoded_entropy = shared_secrets.map(
+        var encoded_entropy = to_pubs.map(
             function(x){
+                var to = keys.ec().keyFromPublic(
+                    toHex(atob(x)), "hex");
+                var shared_secret =
+                    shared(newkey, to);
                 var r = [];
                 for(var i = 0; i<32; i++){
-                    r[i] = (x[i] ^ entropy[i]);
-                }
-                return(btoa(array_to_string(r)));
+                    r[i] = (shared_secret[i] ^
+                            entropy[i]);
+                };
+                r = btoa(array_to_string(r));
+                return([x,r]);
             });
         var emsg = bin_enc(
             entropy, string_to_array(
                 JSON.stringify(msg)));
-        return ["emsg", btoa(array_to_string(eph_pub)), to_pubs, encoded_entropy, btoa(array_to_string(emsg))];
+        return ["emsg",
+                btoa(array_to_string(eph_pub)),
+                encoded_entropy,
+                btoa(array_to_string(emsg))];
     };
     function multi_get(emsg, my_key) {
         var eph_pub = atob(emsg[1]);
         var eph_key = keys.ec().keyFromPublic(toHex(eph_pub), 'hex');
         var ss = shared(my_key, eph_key);
-        var to_pubs = emsg[2];
-        var encoded_entropy = emsg[3];
-        var encrypted = emsg[4];
-        var encoded_entropy =
+        var encoded_entropy = emsg[2];
+        var encrypted = emsg[3];
+        encoded_entropy =
             string_to_array(atob(entropy_grab(
-                encoded_entropy, to_pubs,
+                encoded_entropy,
                 btoa(fromHex(my_key.getPublic(
                     "hex"))))));
         var ss = shared(my_key, eph_key);
         var entropy = [];
         for(var i = 0; i<32; i++){
-            entropy[i] = (encoded_entropy[i] ^
-                          ss[i]);
+            entropy[i] =
+                (encoded_entropy[i] ^ ss[i]);
         };
-        var msg = JSON.parse(array_to_string(bin_dec(entropy, string_to_array(atob(emsg[4])))));
+        var msg = JSON.parse(array_to_string(bin_dec(entropy, string_to_array(atob(encrypted)))));
         var fromkey = keys.ec().keyFromPublic(toHex(atob(atob(msg[3]))), 'hex');
         var b = verify(emsg[1], msg[1], fromkey);
-        if (b) { return msg[2]
-        } else { throw("encryption get error");
-               };
+        if (b) {
+            return msg[2]
+        } else {
+            throw("encryption get error");
+        };
         //console.log(JSON.stringify([btoa(fromHex(my_key.getPublic("hex"))), to_pubs]));
     };
-    function entropy_grab(es, tos, me){
-        if(tos[0] === me){
-            return(es[0]);
-        };
+    function entropy_grab(es, me){
+        var to = es[0][0];
+        if(to === me){
+            return(es[0][1]);
+        }
         return(entropy_grab(
-            es.slice(1), tos.slice(1), me));
+            es.slice(1), me));
     }
     function send(m, to_pub, fromkey) {
         var to = keys.ec().keyFromPublic(
@@ -187,9 +191,15 @@ function encryption_main() {
         var emsg = multi_send(
             "hi", [to1, to2], fromKey);
         return([multi_get(emsg, key1),
-                multi_get(emsg, key2),emsg]);
+                multi_get(emsg, key2),
+                emsg]);
     };
-    return {get: get, send: send, test: test, test2: test2, test_shared: test_shared, test3:test3};
+    return {get: get, send: send,
+            multi_send: multi_send,
+            multi_get: multi_get,
+            test: test,
+            test2: test2, test_shared: test_shared,
+            test3:test3};
 }
 var encryption_object = encryption_main();
 
